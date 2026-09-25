@@ -1,0 +1,24 @@
+{
+    "task": "问题三：可解释性多模态情感预测建模与验证 (3-Seed平滑遮挡敏感性分析)",
+    "total_test_samples": 20,
+    "primary_modality_distribution": {
+        "文本模态 (Text)": 19,
+        "视觉模态 (Vision)": 1,
+        "语音模态 (Audio)": 0
+    },
+    "average_modality_contributions_pct": {
+        "text_avg_pct": 64.17,
+        "audio_avg_pct": 17.33,
+        "vision_avg_pct": 18.5
+    },
+    "polarity_distribution": {
+        "Negative": 6,
+        "Positive": 8,
+        "Neutral": 6
+    },
+    "intensity_stats": {
+        "mean": 0.0541,
+        "min": -2.4428,
+        "max": 1.4784
+    }
+}
