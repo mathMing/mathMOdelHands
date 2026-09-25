@@ -33,7 +33,7 @@ def compute_metrics(cls_preds, cls_targets, reg_preds, reg_targets):
         r = 0.0
     return acc, f1, mae, r
 
-def evaluate_with_custom_mask(models, loader, miss_type='none', pos='middle', ratio=0.3):
+def evaluate_with_custom_mask(models, loader, miss_type='none', pos='middle', ratio=0.3, start_idx_override=None):
     """
     按指定控制变量模拟缺失并评估:
     miss_type: 'none', 't', 'a', 'v', 'a_v', 't_a', 't_v'
@@ -48,7 +48,9 @@ def evaluate_with_custom_mask(models, loader, miss_type='none', pos='middle', ra
     seq_len = 50
     miss_len = int(seq_len * ratio)
 
-    if pos == 'early':
+    if start_idx_override is not None:
+        start_idx = int(start_idx_override)
+    elif pos == 'early':
         start_idx = 0
     elif pos == 'middle':
         start_idx = (seq_len - miss_len) // 2
