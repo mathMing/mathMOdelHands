@@ -1,0 +1,24 @@
+\section{附录：实验文件与复现说明}
+
+本文最终结果的来源文件如下：
+\begin{itemize}
+    \item 问题二最终指标：\texttt{problem2\_key\_metrics\_final\_argmax.json}；
+    \item 结构消融：\texttt{architecture\_ablation\_summary.csv}；
+    \item 损失函数对照：\texttt{loss\_ablation\_summary.csv}；
+    \item 验证集误差分析：\texttt{validation\_error\_attribution\_summary.json}；
+    \item 附件 3 预测：目录 \texttt{problem2\_robust} 下的两个 CSV；
+    \item 附件 4 解释：目录 \texttt{problem3\_interpretability} 下的解释 CSV。
+\end{itemize}
+
+最终方案使用三个固定随机种子 $42,123,777$。每个种子保存验证集最佳 checkpoint，测试阶段对分类概率求平均后采用 Argmax。原始数据和模型权重保留在本地及服务器，不纳入公开代码分支。重新运行时，应先检查输入文件、特征形状、标签数量和输出 CSV 行数，再执行训练或推理脚本。
+
+\subsection{复现实验顺序}
+\begin{enumerate}
+    \item 生成或检查问题一的统一特征、有效长度和 mask；
+    \item 使用训练集统计量完成标准化，并固定训练、验证、测试划分；
+    \item 训练三个 seed，保存验证集最佳 checkpoint；
+    \item 在验证集锁定损失、checkpoint 和分类策略；
+    \item 只在最终方案锁定后评估测试集；
+    \item 生成结构消融、附件 3 预测和附件 4 遮挡敏感性解释；
+    \item 对 CSV、JSON、图表和论文数字执行一致性检查。
+\end{enumerate}
