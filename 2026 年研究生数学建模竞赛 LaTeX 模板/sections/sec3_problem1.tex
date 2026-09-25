@@ -1,158 +1,22 @@
-\section{问题一：基于动态时间规整与多头交叉注意力的自适应对齐模型}
+\section{问题一：多模态特征提取与时间统一}
 
-\subsection{跨模态时序异步问题的形式化数学描述}
-在多模态语言计算系统中，一个完整的多模态视频片段可以形式化表示为包含三个独立时间序列的元组：
+\subsection{问题定义与数据结构}
+附件 1 包含 100 条视频样本。每条样本记录视频编号、文本转写、原始视频时长以及文本、音频和视觉信息。本文不将问题一表述为预测性能问题，而是建立从原始样本到统一多模态时序张量的可复现映射。
+
+\subsection{三模态特征}
+文本使用预训练语言模型提取上下文表示，音频提取 MFCC、Chroma、Mel 频谱和相关谱统计特征，视觉提取视频帧的灰度直方图及统计特征。每条记录同时保存特征维度、原始有效长度和异常处理状态。问题一生成的特征文件和 100 条样本汇总表用于后续问题二、问题三。
+
+\subsection{统一长度与时间位置}
+设文本、音频和视觉的原始序列分别为 $X_t,X_a,X_v$。本文将文本有效序列作为统一索引基准，将音频和视觉按时间顺序划分为对应区间并进行平均聚合：
 \begin{equation}
-\mathcal{U} = \big( \mathbf{X}_t, \mathbf{X}_a, \mathbf{X}_v \big)
+\widetilde{x}_{m,k}=\frac{1}{|I_k|}\sum_{i\in I_k}x_{m,i},\qquad m\in\{a,v\},
 \end{equation}
-其中，各单模态原始输入矩阵分别为：
-\begin{align}
-\mathbf{X}_t &= [x_1^{(t)}, x_2^{(t)}, \dots, x_{L_t}^{(t)}]^T \in \mathbb{R}^{L_t \times d_t} \\
-\mathbf{X}_a &= [x_1^{(a)}, x_2^{(a)}, \dots, x_{L_a}^{(a)}]^T \in \mathbb{R}^{L_a \times d_a} \\
-\mathbf{X}_v &= [x_1^{(v)}, x_2^{(v)}, \dots, x_{L_v}^{(v)}]^T \in \mathbb{R}^{L_v \times d_v}
-\end{align}
-在未经对齐处理的初始状态下，三者的时序长度满足严格的不等式约束 $L_t \ne L_a \ne L_v$。更为复杂的是，序列索引 $i \in [1, L_t]$、$j \in [1, L_a]$ 与 $k \in [1, L_v]$ 并不对应物理世界中的相同时刻。设物理时间戳函数分别为 $\tau_t(i)$、$\tau_a(j)$ 和 $\tau_v(k)$，由于说话人发音时的声学共振延迟、面部微表情的起始动作超前或滞后，跨模态时钟呈现出高度复杂的非线性时变映射关系：
-\begin{equation}
-\tau_a(j) = \phi_a(\tau_t(i)), \quad \tau_v(k) = \phi_v(\tau_t(i))
-\end{equation}
-其中 $\phi_a(\cdot)$ 和 $\phi_v(\cdot)$ 为未知的非线性单调增函数。
+其中 $I_k$ 表示映射到第 $k$ 个统一位置的原始特征区间。统一长度设为 $L=50$；超过长度的序列截断，不足长度的位置零填充，并保存有效位置掩码 $M_m(k)$。
 
-问题一的核心数学目标在于：\textbf{寻找一个保真的时空自适应映射算子 $\mathcal{F}_{\text{align}}$，使得任意输入元组 $(\mathbf{X}_t, \mathbf{X}_a, \mathbf{X}_v)$ 能够被最优变换为在统一标准步长 $L$（本文设定 $L=50$）上严格对齐的多模态张量 $(\tilde{\mathbf{X}}_t, \tilde{\mathbf{X}}_a, \tilde{\mathbf{X}}_v) \in \mathbb{R}^{L \times (d_t + d_a + d_v)}$，同时最大化跨模态互信息并最小化时序失真代价}。
+文本掩码来自原始有效 token；音频和视觉掩码来自特征提取阶段记录的有效长度或缺失标记。这样可以区分真实缺失、填充位置和数值接近零但有效的特征，避免仅凭特征绝对值推断有效性。
 
-\subsection{动态时间规整 (Dynamic Time Warping, DTW) 数学机理与递推推导}
-为了消除视听序列在局部时间轴上的非均匀拉伸与压缩，本文首先引入经典的最优控制算法——动态时间规整（DTW）\cite{berndt1994using}。
+\subsection{质量检查与输出}
+对齐后逐条检查样本编号、特征维度、序列长度、有效位置数量和标签数量。异常视频、空音频和截断情况写入处理日志。最终输出包括 100 条样本汇总表、统一特征文件、有效长度和掩码字段。
 
-\subsubsection{局部距离测度构建}
-设参考时钟序列为 $\mathbf{A} = [a_1, a_2, \dots, a_N] \in \mathbb{R}^{N \times d}$，待规整的目标序列为 $\mathbf{B} = [b_1, b_2, \dots, b_M] \in \mathbb{R}^{M \times d}$。若两模态特征维度不一致，首先通过线性正交投影矩阵 $\mathbf{W}_{\text{proj}}$ 将目标序列映射至参考序列的特征空间：$\tilde{b}_j = \mathbf{W}_{\text{proj}} b_j$。定义第 $i$ 个参考向量与第 $j$ 个目标向量之间的局部距离为带加权余弦-欧氏复合距离测度：
-\begin{equation}
-\delta(i, j) = \alpha \|a_i - \tilde{b}_j\|_2 + (1 - \alpha) \left( 1 - \frac{a_i \cdot \tilde{b}_j}{\|a_i\|_2 \|\tilde{b}_j\|_2} \right)
-\end{equation}
-其中 $\alpha \in [0, 1]$ 为模态平衡超参数，本文设 $\alpha = 0.5$。
-
-\subsubsection{累积代价矩阵与动态规划方程}
-规整路径被定义为由矩阵网格坐标构成的序列 $W = (w_1, w_2, \dots, w_K)$，其中 $w_k = (i_k, j_k)$。该路径必须严格满足以下三大约束：
-\begin{enumerate}
-    \item \textbf{边界约束 (Boundary Conditions)}：$w_1 = (1, 1)$ 且 $w_K = (N, M)$，确保序列端点对齐；
-    \item \textbf{单调性约束 (Monotonicity)}：$i_{k+1} \ge i_k$ 且 $j_{k+1} \ge j_k$，防止时间发生逆流倒退；
-    \item \textbf{连续性约束 (Continuity)}：$i_{k+1} - i_k \le 1$ 且 $j_{k+1} - j_k \le 1$，保证信息连续流动无遗漏。
-\end{enumerate}
-
-基于贝尔曼最优性原理（Bellman's Principle of Optimality），累积距离代价矩阵 $\mathbf{D} \in \mathbb{R}^{N \times M}$ 的状态转移方程可由动态规划精确求解：
-\begin{equation}
-\mathbf{D}(i, j) = \delta(i, j) + \min \begin{cases}
-\mathbf{D}(i-1, j) & (\text{时序压缩 Insertion}) \\
-\mathbf{D}(i, j-1) & (\text{时序拉伸 Deletion}) \\
-\mathbf{D}(i-1, j-1) & (\text{时序匹配 Match})
-\end{cases}
-\end{equation}
-初值边界条件初始化为：
-\begin{align}
-\mathbf{D}(1, 1) &= \delta(1, 1) \\
-\mathbf{D}(i, 1) &= \mathbf{D}(i-1, 1) + \delta(i, 1), \quad \forall i \in [2, N] \\
-\mathbf{D}(1, j) &= \mathbf{D}(1, j-1) + \delta(1, j), \quad \forall j \in [2, M]
-\end{align}
-
-\subsubsection{Sakoe-Chiba 全局约束带加速}
-为了防止算法因某些异常噪音频段而产生病态的时序弯曲（如将一段很短的音频过度映射至超长文本），本文在动态规划求解中施加了 Sakoe-Chiba 菱形约束带：
-\begin{equation}
-|i_k - \frac{N}{M} j_k| \le R
-\end{equation}
-其中窗口半径设为 $R = \max(5, 0.15 \times \max(N, M))$。这不仅大幅压低了计算复杂度至 $\mathcal{O}(N \cdot R)$，更保证了规整路径紧密环绕在物理时间主对角线附近。
-
-\subsection{算法设计与伪代码实现}
-基于上述动态规整机理，完整的跨模态自适应对齐算法逻辑如算法 \ref{alg:dtw_align} 所示：
-
-\begin{algorithm}[H]
-\caption{基于动态时间规整与交叉注意力的多模态时序自适应对齐算法 (DTW-CrossAttn)}
-\label{alg:dtw_align}
-\begin{algorithmic}[1]
-\Require 原始非对齐时序矩阵 $\mathbf{X}_t \in \mathbb{R}^{L_t \times d_t}, \mathbf{X}_a \in \mathbb{R}^{L_a \times d_a}, \mathbf{X}_v \in \mathbb{R}^{L_v \times d_v}$；目标标准步长 $L=50$
-\Ensure 统一对齐后的多模态特征张量 $\tilde{\mathbf{X}} = [\tilde{\mathbf{X}}_t, \tilde{\mathbf{X}}_a, \tilde{\mathbf{X}}_v] \in \mathbb{R}^{L \times (d_t + d_a + d_v)}$
-\State \textbf{Step 1: 特征线性投影与空间对齐}
-\State $\hat{\mathbf{X}}_a \gets \mathbf{X}_a \mathbf{W}_a + \mathbf{b}_a, \quad \hat{\mathbf{X}}_v \gets \mathbf{X}_v \mathbf{W}_v + \mathbf{b}_v$ \Comment{投影至中间维度 $d_{\text{proj}}=128$}
-\State \textbf{Step 2: 动态时间规整求解弯曲路径}
-\For{模态 $m \in \{a, v\}$}
-    \State 计算局部复合距离矩阵 $\delta_m(i, j) \in \mathbb{R}^{L_t \times L_m}$
-    \State 初始化累积代价矩阵 $\mathbf{D}_m$
-    \For{$i = 1 \to L_t$, $j = 1 \to L_m$ 满足 Sakoe-Chiba 约束}
-        \State $\mathbf{D}_m(i, j) \gets \delta_m(i, j) + \min \{\mathbf{D}_m(i-1, j), \mathbf{D}_m(i, j-1), \mathbf{D}_m(i-1, j-1)\}$
-    \EndFor
-    \State 从 $(L_t, L_m)$ 回溯梯度最小邻接点，获得最优规整路径 $W_m^* = \{(i_k, j_k)\}_{k=1}^K$
-    \State 按照路径索引对模态 $m$ 进行非线性聚集，得到文本尺度对齐序列 $\mathbf{Z}_m \in \mathbb{R}^{L_t \times d_m}$
-\EndFor
-\State \textbf{Step 3: 跨模态注意力时序重采样与固定长度投影}
-\State 构造目标长度 $L=50$ 的正弦位置编码查询矩阵 $\mathbf{Q} \in \mathbb{R}^{L \times d_{\text{model}}}$
-\For{模态 $m \in \{t, a, v\}$}
-    \State 以 $\mathbf{Q}$ 为 Query，$\mathbf{Z}_m$（或 $\mathbf{X}_t$）为 Key 和 Value，计算多头缩放点积注意力：
-    \State $\tilde{\mathbf{X}}_m \gets \text{MultiHeadAttention}(\mathbf{Q}, \mathbf{Z}_m, \mathbf{Z}_m)$
-    \State 进行 LayerNorm 与残差拼接
-\EndFor
-\State \Return 对齐特征拼接张量 $\tilde{\mathbf{X}} = [\tilde{\mathbf{X}}_t, \tilde{\mathbf{X}}_a, \tilde{\mathbf{X}}_v]$
-\end{algorithmic}
-\end{algorithm}
-
-\subsection{跨模态多头缩放点积注意力时间重采样机制}
-在通过 DTW 完成基于物理时间的弹性弯曲匹配后，各模态长度被初步同步至文本单词长度 $L_t$。然而，不同样本的文本词数本身亦不相同（$L_t \in [4, 48]$）。为适配深度学习批量计算（Batch Processing）与固定结构卷积/循环神经网络的要求，必须将所有序列规范化至全局固定步长 $L=50$。
-
-传统做法常直接对词向量进行粗暴的尾部补零（Zero-padding），这不仅浪费了约 $60\%$ 的显存与算力，更在时序末端引入大量阶跃虚假信号。为此，本文设计了\textbf{跨模态多头时间注意力重采样器 (Multi-Head Temporal Attention Resampler)}：
-\begin{equation}
-\mathbf{Q}_{\text{target}} = \text{Embedding}(L) + \text{PE}(L) \in \mathbb{R}^{50 \times d_{\text{model}}}
-\end{equation}
-其中 $\text{PE}(\cdot)$ 为经典的三角函数绝对位置编码：
-\begin{align}
-\text{PE}(pos, 2i) &= \sin\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right) \\
-\text{PE}(pos, 2i+1) &= \cos\left(\frac{pos}{10000^{2i/d_{\text{model}}}}\right)
-\end{align}
-以固定步长的 $\mathbf{Q}_{\text{target}}$ 作为全局时间探测向量，将 DTW 规整后的多模态表征作为键值对，计算跨模态多头缩放点积注意力：
-\begin{equation}
-\text{Head}_h = \text{softmax}\left(\frac{\mathbf{Q} \mathbf{W}_h^Q (\mathbf{Z}_m \mathbf{W}_h^K)^T}{\sqrt{d_k}} + \mathbf{M}_{\text{valid}}\right) \mathbf{Z}_m \mathbf{W}_h^V
-\end{equation}
-\begin{equation}
-\tilde{\mathbf{X}}_m = \text{Concat}(\text{Head}_1, \dots, \text{Head}_H) \mathbf{W}^O
-\end{equation}
-其中有效时步掩码矩阵 $\mathbf{M}_{\text{valid}}$ 确保注意力绝不扩散至原始序列之外的非法区域。该机制将任意长度的原始信号转化为固定 50 步长的平滑高保真连续流，同时完美保留了各模态原有的时序因果轮廓。
-
-\subsection{对齐质量多维度量化评估与可视化检验}
-为了严谨评估 DTW-CrossAttn 对齐算法的有效性，本文从信息论、几何形态学以及统计相关性三个独立视角展开量化检验。
-
-\subsubsection{信息论互信息提升度量}
-计算对齐前后文本与视听模态在隐空间表征上的互信息量，如表 \ref{tab:mi_eval} 所示：
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.3}
-\caption{对齐前后多模态互信息 (MI) 与皮尔逊相关系数对比检验表}
-\label{tab:mi_eval}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|c|c|c|c|}
-\hline
-\textbf{评估模态对} & \textbf{对齐前互信息 (MI)} & \textbf{对齐后互信息 (MI)} & \textbf{互信息增益率 (\%)} & \textbf{皮尔逊相关系数 $r$} \\ \hline
-文本 - 语音 (Text-Audio) & 0.3812 & \textbf{0.5124} & \textbf{+34.42\%} & $0.412 \to \mathbf{0.638}$ \\ \hline
-文本 - 视觉 (Text-Vision) & 0.3420 & \textbf{0.4851} & \textbf{+41.84\%} & $0.365 \to \mathbf{0.592}$ \\ \hline
-语音 - 视觉 (Audio-Vision) & 0.2154 & \textbf{0.3789} & \textbf{+75.91\%} & $0.208 \to \mathbf{0.484}$ \\ \hline
-\end{tabular}%
-}
-\end{table}
-
-表 \ref{tab:mi_eval} 的数据充分证明：对齐算子消除了跨模态语义的时间错位，模态间互信息普遍出现 30\%$\sim$70\% 的巨大跃升，特别是声画之间的协同互信息增益达到惊人的 $+75.91\%$。
-
-\subsubsection{时序弯曲路径几何稳定性分析}
-通过提取测试集随机抽取的典型样本弯曲路径，我们绘制了累积代价距离与对齐弯曲路径。结果表明，最优路径紧致平滑地分布于对角线走廊，未发生退化性的纵向或横向突变切变，证明 Sakoe-Chiba 约束有效滤除了边缘异常离群帧的扰动。
-
-\subsection{数据集标准化预处理流水线落地}
-为消除不同特征量纲（如基频可达数百 Hz，而面部动作单元多在 $0\sim 5$ 之间）对神经网络梯度下降的尺度干扰，严格遵守盲测协议，仅基于训练集（Train Split）计算各特征维度的均值向量 $\mu_m$ 与标准差向量 $\sigma_m$：
-\begin{equation}
-\mu_m = \frac{1}{\sum_{i,t} M_m^{(i)}[t]} \sum_{i=1}^{N_{\text{tr}}} \sum_{t=1}^L M_m^{(i)}[t] \cdot \tilde{X}_m^{(i)}[t]
-\end{equation}
-\begin{equation}
-\sigma_m = \sqrt{ \frac{1}{\sum_{i,t} M_m^{(i)}[t]} \sum_{i=1}^{N_{\text{tr}}} \sum_{t=1}^L M_m^{(i)}[t] \cdot \big(\tilde{X}_m^{(i)}[t] - \mu_m\big)^2 + \epsilon }
-\end{equation}
-对于任意新输入的样本（包含验证集与独立测试集），标准化处理严格统一执行为：
-\begin{equation}
-\hat{X}_m[t] = \begin{cases}
-\dfrac{\tilde{X}_m[t] - \mu_m}{\sigma_m}, & \text{当 } M_m[t] = 1 \\
-\mathbf{0}, & \text{当 } M_m[t] = 0 \ (\text{缺失})
-\end{cases}
-\end{equation}
-至此，问题一完备构建了高保真、抗尺度失真的对齐多模态张量数据集，为后续高容错表征学习提供了坚不可摧的数据输入接口。
+\subsection{问题一小结}
+问题一的成果是可复现的数据转换流程，而不是单独的分类指标。该流程保证文本、音频和视觉特征具有统一的批处理形状，并为后续缺失模态实验提供明确的 mask 和有效长度定义。

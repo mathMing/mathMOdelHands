@@ -1,171 +1,28 @@
-\section{问题三：多模态协同归因与双层细粒度时序可解释性分析模型}
+\section{问题三：基于遮挡敏感性的多模态解释}
 
-\subsection{双层协同归因方法论与公理化可信准则}
-随着深度学习在医疗辅助诊断、法律量刑评估与高危决策中的广泛应用，可解释人工智能（Explainable AI, XAI）已成为模型可信赖部署的硬性指标。在多模态情感分析中，评委与用户不仅关心模型输出了“正向”或“负向”，更迫切需要探明：
-\begin{enumerate}
-    \item \textbf{宏观视角}：最终的喜怒哀乐究竟主要源自说话人的言语词汇（文本）、抑扬顿挫的语调（语音），还是面部微表情（视觉）？各模态的因果贡献比例几何？
-    \item \textbf{微观视角}：在长达十几秒的视频中，导致模型做出该判决的关键转折点发生在第几秒？对应视频的哪几帧画面？说话人在此瞬间吐露的核心词句是什么？
-\end{enumerate}
+\subsection{解释对象与边界}
+问题三复用问题二中锁定的 DRM-Net 模型，对完整三模态输入进行预测和解释。解释结果描述模型输出对输入扰动的敏感程度，不等同于严格因果效应；门控权重也不等同于真实信息量。
 
-传统基于微小扰动的简单显著性图（Saliency Map）存在梯度饱和（Gradient Saturation）以及不满足完备性公理的缺陷。为此，本文严格遵循 Sundararajan 等人\cite{sundararajan2017axiomatic}提出的 XAI 两大基础公理，构建了\textbf{宏观-微观双层协同归因框架 (Dual-Level Attribution Framework)}：
-\begin{itemize}
-    \item \textbf{完备性公理 (Completeness)}：各输入特征归因分值之和必须严格等于最终预测输出与基准中性输出（Baseline）之差：$\sum_i \text{Attr}_i = F(x) - F(x') $；
-    \item \textbf{实现无关性公理 (Implementation Invariance)}：两个功能上完全等价的神经网络架构，对于相同的输入信号必须产生完全一致的因果归因图谱。
-\end{itemize}
-
-\subsection{宏观层：模态动态贡献度定量归因数学模型}
-在全局宏观层面，定义各模态对最终情感判定结果的相对贡献度百分比。
-
-\subsubsection{1. 积分梯度 (Integrated Gradients) 沿直线路径积分}
-设基准参考输入为各模态全零的基线特征 $x' = \mathbf{0}$，当前输入样本特征为 $x$。在连续欧氏空间中，连接基线与当前样本的直线插值路径为：
+\subsection{模态遮挡敏感性}
+设完整输入的回归输出为 $\widehat y$，遮挡模态 $m$ 后的输出为 $\widehat y^{(-m)}$，定义：
 \begin{equation}
-\gamma(\alpha) = x' + \alpha (x - x') = \alpha x, \quad \alpha \in [0, 1]
+\Delta_m=|\widehat y-\widehat y^{(-m)}|,
+\qquad C_m=\frac{\Delta_m}{\Delta_t+\Delta_a+\Delta_v+\epsilon}.
 \end{equation}
-模型预测标量输出 $F(x) = \hat{y}_r$ 相对于模态 $m$ 在时步 $t$、第 $d$ 个维度的积分梯度精确定义为：
+其中 $C_m$ 是相对遮挡敏感性比例。由于模态交互和非线性重算，$C_m$ 不能解释为独立的因果贡献。
+
+\subsection{时间步显著性与证据映射}
+在遮挡敏感性最大的主要模态内，对第 $t$ 个时间步进行遮挡，得到：
 \begin{equation}
-\text{IG}_m[t, d] = (x_m[t, d] - x'_m[t, d]) \times \int_0^1 \frac{\partial F(x' + \alpha (x - x'))}{\partial x_m[t, d]} d\alpha
+S(t)=|\widehat y-\widehat y^{(-t)}|.
 \end{equation}
-在数值计算中，通过黎曼和将连续积分严格离散化为 $K=50$ 步梯形逼近：
-\begin{equation}
-\text{IG}_m[t, d] \approx x_m[t, d] \times \frac{1}{K} \sum_{k=1}^K \frac{\partial F\left(\frac{k}{K} x\right)}{\partial x_m[t, d]}
-\end{equation}
+对 $S(t)$ 归一化后，使用连续窗口求和选择最大显著窗口，再按照原始视频时长映射到秒数和帧区间，并保存对应文本片段。
 
-\subsubsection{2. 模态绝对与相对贡献百分比定义}
-综合前向推理中 CAG 门控机制自适应分配的权重 $g_m$，以及隐空间高维特征范数，定义模态 $m$ 的绝对能量归因值为：
-\begin{equation}
-\mathcal{E}_m = g_m \cdot \|\bar{h}_m\|_2 + \lambda \sum_{t=1}^L \sum_{d=1}^{d_m} |\text{IG}_m[t, d]|
-\end{equation}
-将绝对能量归一化至概率单纯形上，即可得到百分比形式的相对贡献度：
-\begin{equation}
-\text{Contr}_m = \frac{\mathcal{E}_m}{\sum_{k \in \{t, a, v\}} \mathcal{E}_k} \times 100\%
-\end{equation}
-满足 $\sum_{m \in \{t, a, v\}} \text{Contr}_m = 100\%$。
+\subsection{附件 4 结果}
+附件 4 共输出 20 条无标签记录，包含预测极性、预测强度、三模态遮挡后预测、遮挡敏感性比例、主要模态、时间步显著性序列、关键时间窗、视频帧区间和文本证据。由于没有真实标签，附件 4 不计算准确率或 F1。
 
-\subsection{宏观模态协同规律全景剖析}
-应用上述模型，我们对赛题附件 4 全量 20 个专项测试样本的三模态动态贡献率进行了精确求解，并绘制了堆叠柱状图，如图 \ref{fig:contr_stack} 所示。
+解释结果统计显示，文本模态平均遮挡敏感性为 64.17\%，音频为 17.33\%，视觉为 18.50\%；主要参考模态为文本 19 条、视觉 1 条、音频 0 条。该统计只描述当前 20 条专项样本和当前模型，不代表普遍因果规律。
 
-\begin{figure}[htp!]
-\centering
-\includegraphics[width=0.92\textwidth]{fig4_modality_contributions_all20.png}
-\caption{附件 4 全量 20 个专项测试样本的三模态动态协同贡献度堆叠柱状图}
-\label{fig:contr_stack}
-\end{figure}
+\subsection{问题三小结}
+本文形成了“完整预测—单模态遮挡—时间步遮挡—窗口定位—文本/视频映射”的可追溯解释链。解释 CSV 和图表均由模型重新计算的结果生成，最终解释应称为模态遮挡敏感性和时间步遮挡显著性。
 
-统计分析揭示出如下极具启发性的多模态认知规律：
-\begin{enumerate}
-    \item \textbf{文本模态的全局基础主导性}：在 20 个样本中，文本模态的平均贡献率达到 $70.43\%$，中位数为 $76.35\%$。在平实客观的陈述性样本中（如 test\_01, test\_07, test\_16），文本贡献率均超过 $80\%$，证明文本语义是构成人类情感命题的坚实龙骨；
-    \item \textbf{视听模态在强烈情绪样本中的交叉放大}：在反讽、激昂或强烈反差样本中，视听模态的贡献度出现爆发式增长。例如样本 test\_04（积极鼓励），语音贡献升至 $30.41\%$，视觉占 $22.88\%$，视听总和（$53.29\%$）超越了文本；样本 test\_11（表达羞愧与自责），视觉贡献高达 $27.79\%$，语音占 $22.51\%$。这充分验证了本文模型具备捕获“神态与语调扭转语义”的高阶因果推理能力。
-\end{enumerate}
-
-\subsection{微观层：细粒度时序显著性与视听关键证据定位}
-在局部微观层面，本文设计了将高维神经网络注意力权重精确穿透映射至物理音视频现实坐标的算法。
-
-\subsubsection{1. 时序注意力回滚算子 (Temporal Attention Rollout)}
-设跨模态注意力层的注意力权重矩阵为 $\mathbf{A} \in \mathbb{R}^{L \times L}$。为追踪各时步对最终分类 Logits 的直接与间接影响，构建回滚传播矩阵：
-\begin{equation}
-\tilde{\mathbf{A}} = 0.5 \mathbf{A} + 0.5 \mathbf{I}
-\end{equation}
-第 $t$ 个步长对最终预测标量的时序显著性得分为：
-\begin{equation}
-\mathcal{S}_{\text{temp}}[t] = \sum_{m \in \{t, a, v\}} g_m \left| \frac{\partial \hat{y}_r}{\partial h_m^{\text{cross}}[t]} \right|^T |h_m^{\text{cross}}[t]|
-\end{equation}
-计算结果经高斯核平滑后形成时序显著性热力曲线，如图 \ref{fig:saliency_curve} 所示。
-
-\begin{figure}[htp!]
-\centering
-\includegraphics[width=0.85\textwidth]{fig5_temporal_saliency_sample04.png}
-\caption{典型正向样本 (test\_04) 的三模态细粒度时序显著性激活曲线（精准捕获情感波峰）}
-\label{fig:saliency_curve}
-\end{figure}
-
-\subsubsection{2. 关键时步波峰自适应提取算法}
-设定自适应显著性阈值：$\tau_{\text{saliency}} = \mu_S + 1.2 \cdot \sigma_S$。所有满足 $\mathcal{S}_{\text{temp}}[t] \ge \tau_{\text{saliency}}$ 的时步被聚合为连通区间，取最大显著性积分对应的连续步长区间 $[t_{\text{start}}, t_{\text{end}}] \subseteq [1, 50]$。
-
-\subsubsection{3. 物理时间戳 (秒) 与关键视频帧号 (Frame) 精确映射}
-设原始视频在物理磁盘上的总时长为 $T_{\text{sec}}$（秒），视频流总帧数为 $N_{\text{frames}}$（帧）：
-\begin{enumerate}
-    \item 对应语音与视频发音的关键时间段区间计算公式为：
-    \begin{equation}
-    \Delta t_{\text{sec}} = \left[ \frac{t_{\text{start}}}{50} \times T_{\text{sec}}, \ \frac{t_{\text{end}}}{50} \times T_{\text{sec}} \right]
-    \end{equation}
-    \item 对应视频流中关键视频帧号区间计算公式为：
-    \begin{equation}
-    \text{Frame}_{\text{range}} = \left[ \left\lfloor \frac{t_{\text{start}}}{50} \times N_{\text{frames}} \right\rfloor, \ \left\lceil \frac{t_{\text{end}}}{50} \times N_{\text{frames}} \right\rceil \right]
-    \end{equation}
-\end{enumerate}
-
-\subsubsection{4. 文本核心情感关键词句反向定位}
-在获取到时序关键步长 $[t_{\text{start}}, t_{\text{end}}]$ 后，反向查询动态时间规整（DTW）的最优弯曲路径映射表 $W_t^* = \{(i_k, t_k)\}$，找出与关键时步高度重合的离散文本词汇索引集合 $\mathcal{I}_{\text{words}} = \{i_k \mid t_k \in [t_{\text{start}}, t_{\text{end}}]\}$。结合分词权重剔除常见连词、介词等停用词，还原出推动模型做出极性判断的核心情感证据词句。
-
-\subsection{多模态决策证据卡片可视化解析}
-针对典型正向样本（test\_04）与典型负向样本（test\_02），系统自动生成的全链路因果决策证据卡片分别如图 \ref{fig:card_pos} 与图 \ref{fig:card_neg} 所示：
-
-\begin{figure}[htp!]
-\centering
-\begin{minipage}[t]{0.48\linewidth}
-\centering
-\includegraphics[width=\textwidth]{fig6_explanation_card_sample04_positive.png}
-\caption{正向典型样本多模态决策证据卡片 (test\_04)}
-\label{fig:card_pos}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.48\linewidth}
-\centering
-\includegraphics[width=\textwidth]{fig7_explanation_card_sample02_negative.png}
-\caption{负向典型样本多模态决策证据卡片 (test\_02)}
-\label{fig:card_neg}
-\end{minipage}
-\end{figure}
-
-\subsubsection{正向样本 test\_04 深度因果解析}
-\begin{itemize}
-    \item \textbf{原始文本}：``If I blow it at the team exercise, should I kiss my chances of cheering 'GO BLUE' goodbye? Absolutely not.''
-    \item \textbf{模型决策}：预测极性为 Positive，预测强度为 $+0.6774$；
-    \item \textbf{模态协同}：文本占比 $46.71\%$，语音占比 $30.41\%$，视觉占比 $22.88\%$；
-    \item \textbf{因果定位}：显著性峰值精准落在步长 $[10, 12]$，映射为物理时间 $1.85\text{s} \sim 2.40\text{s}$，对应关键帧 $55 \sim 72$ 帧。在这一瞬间，说话人说出核心短语“Absolutely not”，伴随坚定的重音声调以及眼部微动作，视听信号极大增强了肯定的积极情绪。
-\end{itemize}
-
-\subsubsection{负向样本 test\_02 深度因果解析}
-\begin{itemize}
-    \item \textbf{原始文本}：``We want to live by each other's happiness - not by each other's misery.''
-    \item \textbf{模型决策}：预测极性为 Neutral/Negative，预测强度为 $+0.0535$（微弱中性偏沉重）；
-    \item \textbf{模态协同}：文本占比 $70.27\%$，语音占比 $15.03\%$，视觉占比 $14.70\%$；
-    \item \textbf{因果定位}：显著性落在步长 $[16, 18]$，映射为物理时间 $1.15\text{s} \sim 1.37\text{s}$，对应第 $34 \sim 41$ 帧。核心词“misery”（痛苦）的发音与面部瞬间收敛动作成为关键负向证据。
-
-\end{itemize}
-
-\subsection{附件 4 可解释专项测试集全量 20 个样本预测与归因结果交付}
-依据赛题对于问题三的全部求解要求，我们将附件 4 中 20 个专项测试视频片段的预测结果与完整双层因果解释数据汇总于表 \ref{tab:att4_full}。全部数据已严格按照竞赛要求的中文列名格式规范输出至文件 \texttt{problem3\_interpretability/附件4\_可解释专项测试集预测与解释结果.csv} 中。
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.2}
-\caption{附件 4 可解释专项测试集全量 20 样本预测、模态贡献与细粒度时空因果证据汇总交付表}
-\label{tab:att4_full}
-\begin{tabularx}{\textwidth}{|c|c|c|c|c|c|c|X|}
-\hline
-\textbf{编号} & \textbf{极性} & \textbf{强度} & \textbf{主要模态} & \textbf{文本\%} & \textbf{语音\%} & \textbf{视觉\%} & \textbf{关键秒数区间与核心词句} \\ \hline
-01 & Neutral & +0.3723 & 文本模态 & 79.90 & 7.75 & 12.35 & 1.98s - 2.52s, when replacing \\ \hline
-02 & Neutral & +0.0535 & 文本模态 & 70.27 & 15.03 & 14.70 & 1.15s - 1.37s, each other's misery \\ \hline
-03 & Neutral & -0.0768 & 文本模态 & 61.71 & 20.18 & 18.11 & 6.72s - 7.68s, just Bankwest \\ \hline
-04 & Positive & +0.6774 & 文本模态 & 46.71 & 30.41 & 22.88 & 1.85s - 2.40s, Absolutely not \\ \hline
-05 & Positive & +0.6260 & 文本模态 & 72.73 & 13.73 & 13.54 & 1.22s - 1.59s, video marketer \\ \hline
-06 & Positive & +0.4833 & 文本模态 & 56.15 & 19.47 & 24.38 & 0.78s - 1.36s, a fan of dancing \\ \hline
-07 & Positive & +0.7439 & 文本模态 & 82.12 & 11.05 & 6.82 & 0.96s - 2.41s, enthusiastically discussed \\ \hline
-08 & Positive & +0.6436 & 文本模态 & 78.07 & 10.84 & 11.09 & 1.12s - 1.59s, Grand Challenge \\ \hline
-09 & Negative & -1.9284 & 文本模态 & 79.85 & 9.17 & 10.99 & 3.62s - 4.29s, not like this movie \\ \hline
-10 & Negative & -1.5479 & 文本模态 & 76.37 & 7.33 & 16.30 & 2.38s - 3.03s, pretty terrible \\ \hline
-11 & Negative & -1.2158 & 文本模态 & 49.70 & 22.51 & 27.79 & 0.46s - 1.14s, ashamed to have made \\ \hline
-12 & Negative & -0.6270 & 文本模态 & 76.34 & 8.70 & 14.97 & 7.71s - 8.93s, credit scores is very low \\ \hline
-13 & Positive & +0.3412 & 文本模态 & 60.33 & 17.05 & 22.62 & 5.20s - 5.72s, find a relationship \\ \hline
-14 & Neutral & +0.5951 & 文本模态 & 67.81 & 13.15 & 19.04 & 7.75s - 8.58s, Executive Director \\ \hline
-15 & Positive & +1.0126 & 文本模态 & 54.87 & 24.17 & 20.97 & 0.73s - 1.17s, transform lives \\ \hline
-16 & Negative & -2.2715 & 文本模态 & 92.70 & 4.15 & 3.15 & 1.34s - 1.67s, terrible movie \\ \hline
-17 & Positive & +1.4058 & 文本模态 & 85.48 & 6.73 & 7.78 & 3.35s - 4.19s, simple, easy \\ \hline
-18 & Neutral & -0.2364 & 文本模态 & 71.20 & 10.35 & 18.46 & 12.35s - 13.72s, failed to reach \\ \hline
-19 & Positive & +0.6036 & 文本模态 & 61.27 & 22.65 & 16.08 & 12.34s - 13.46s, forgiving brands \\ \hline
-20 & Positive & +1.0425 & 文本模态 & 81.48 & 11.99 & 6.53 & 7.11s - 8.23s, live updates \\ \hline
-\end{tabularx}
-\end{table}
-
-表 \ref{tab:att4_full} 完整交付了问题三要求的全部字段，实现了从数值化预测到高阶语义可解释的完美闭环。

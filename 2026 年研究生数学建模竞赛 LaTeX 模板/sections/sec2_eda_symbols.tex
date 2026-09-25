@@ -138,14 +138,13 @@ $L$ & $\mathbb{Z}^+, L=50$ & 全局统一规范化后的标准时序步长长度
 $d_{\text{model}}$ & $\mathbb{Z}^+, d_{\text{model}}=256$ & 深度融合网络的隐空间统一特征维度 \\ \hline
 $M_m \in \{0, 1\}^{L}$ & 二值掩码张量 & 模态 $m$ 的有效时序掩码（$1$ 代表有效感知，$0$ 代表局部缺失） \\ \hline
 $P_a, P_v$ & $\mathbb{R}^{1 \times 1 \times d_{\text{model}}}$ & 语音与视觉模态的可学习缺失填充提示向量（Learnable Prompts） \\ \hline
-$\mathbf{D}_{\text{DTW}}$ & $\mathbb{R}^{N \times M}$ & 动态时间规整算法中构建的累积弯曲代价矩阵 \\ \hline
+$\mathbf{I}_{\text{align}}$ & $\mathbb{R}^{L \times L_m}$ & 将原始模态序列映射到统一时间位置的区间索引 \\ \hline
 $h_m \in \mathbb{R}^{d_{\text{model}}}$ & 向量空间 $\mathbb{R}^{256}$ & 模态 $m$ 经 Bi-GRU 编码与时序池化后的高维稠密语义向量 \\ \hline
 $\gamma_m \in [0, 1]$ & 标量 & 模态 $m$ 在序列内的有效时步比率：$\gamma_m = \frac{1}{L} \sum_{t=1}^L M_m[t]$ \\ \hline
 $g = [g_t, g_a, g_v]^T$ & 概率单纯形 $\Delta^2$ & 冲突感知门控（CAG）分配给三模态的融合自适应权重 \\ \hline
 $h_{\text{fused}} \in \mathbb{R}^{256}$ & 向量空间 $\mathbb{R}^{256}$ & 经门控自适应加权后的全局多模态多维稠密表征 \\ \hline
-$\mathbf{W}_{\text{ord}} \in \mathbb{R}^{3 \times 3}$ & 对称代价矩阵 & Wasserstein 序数距离惩罚拓扑矩阵 \\ \hline
-$\Phi_{\text{meta}} \in \mathbb{R}^{261}$ & 向量空间 $\mathbb{R}^{261}$ & 提取自深度集成网络的隐空间多深度元学习特征向量 \\ \hline
-$P_{\text{final}} \in [0, 1]^3$ & 概率分布向量 & DTH-Champion 最终给出的样本在三分类上的预测概率分布 \\ \hline
-$S_{\text{attr}} \in \mathbb{R}^{L \times 3}$ & 时空显著性图谱 & 基于积分梯度与注意力回滚的双层因果归因矩阵 \\ \hline
+$\mathcal{L}$ & $\mathbb{R}$ & 加权交叉熵与 Smooth L1 回归损失的联合目标 \\ \hline
+$P_{\text{final}} \in [0, 1]^3$ & 概率分布向量 & 三个 seed 概率平均后的最终三分类分布 \\ \hline
+$S_{\text{occ}} \in \mathbb{R}^{L}$ & 时间显著性序列 & 基于逐时间步遮挡重算得到的显著性序列 \\ \hline
 \end{tabularx}
 \end{table}

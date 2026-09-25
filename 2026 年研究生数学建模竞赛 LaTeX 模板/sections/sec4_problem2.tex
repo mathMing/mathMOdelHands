@@ -1,386 +1,62 @@
-\section{问题二：抗模态缺失鲁棒表征网络与 DTH-Champion 情感分类模型}
+\section{问题二：缺失模态鲁棒情感预测}
 
-\subsection{模态局部随机缺失的形式化数学建模}
-在实际数据传输与复杂环境交互中，多模态特征的时序丢失通常表现为特定模态在连续物理时间切片上的突发性信号中断。为了在数学上严谨刻画该随机动力学过程，本文建立\textbf{分块时序掩码马尔可夫模型 (Blockwise Temporal Masking Markov Model)}。
+\subsection{任务定义}
+附件 2 按训练集、验证集和测试集组织。训练集用于学习参数，验证集用于选择最佳 epoch、损失配置和分类策略，测试集只在方案锁定后进行一次最终评估。标准化统计量只由训练集计算。附件 3 没有标签，因此只进行专项推理。
 
-对于每个模态 $m \in \{t, a, v\}$，定义其在离散时步 $t \in [1, L]$ 处的二值有效掩码变量为 $M_m[t] \in \{0, 1\}$。掩码的状态转移服从两状态离散时间马尔可夫链：
-\begin{align}
-P(M_m[t] = 0 \mid M_m[t-1] = 1) &= p_{\text{drop}} \\
-P(M_m[t] = 0 \mid M_m[t-1] = 0) &= 1 - p_{\text{rec}}
-\end{align}
-其中 $p_{\text{drop}}$ 为丢包发生率，$p_{\text{rec}}$ 为信号恢复率。序列的平均连续缺失时长为 $\mathbb{E}[L_{\text{burst}}] = \frac{1}{p_{\text{rec}}}$，而全局平均缺失比例定义为：
-\begin{equation}
-\rho_m = 1 - \frac{1}{L} \sum_{t=1}^L M_m[t] \in [0.0, 0.70]
-\end{equation}
-受损后的输入信号可精确表示为原始完好特征张量 $\tilde{X}_m$ 与掩码的哈达玛积（Hadamard Product）：
-\begin{equation}
-X_m^{\text{corrupt}}[t] = M_m[t] \cdot \tilde{X}_m[t]
-\end{equation}
-问题二的核心数学诉求在于：\textbf{设计一个高容错表征映射网络 $\mathcal{M}_{\theta}$，使得即使在 $\rho_m$ 高达 $70\%$，且缺失发生在前段、中段或随机切片的极端不利条件下，模型依然能够维持极高的三分类准确率与连续回归拟合度，并彻底打破学术界 SOTA 纪录}。
+\subsection{DRM-Net 模型}
+对每个模态 $m$ 的输入序列 $X_m$ 先进行线性投影，再由 Bi-GRU 得到时序表示 $H_m$。缺失位置由 $M_m$ 标记。跨模态注意力只对有效 key/value 计算归一化权重；当某模态全部缺失时，注意力输出为零向量，避免全缺失输入产生伪均匀注意力。
 
-\subsection{动态鲁棒多模态网络 (DRM-Net) 体系架构设计}
-为实现对时序连续丢包的主动免疫，本文提出动态鲁棒多模态网络（Dynamic Robust Multimodal Network, DRM-Net），其核心前向传播推导如下：
+对有效时间步进行 mask-aware pooling：
+\begin{equation}
+z_m=\frac{\sum_t M_m(t)H_m(t)}{\max(1,\sum_tM_m(t))}.
+\end{equation}
+动态门控产生 $g_t,g_a,g_v$，并满足 $g_t+g_a+g_v=1$。融合表示为
+\begin{equation}
+z=g_tz_t+g_az_a+g_vz_v.
+\end{equation}
+分类头输出三类极性概率，回归头输出连续情感强度。
 
-\subsubsection{1. 模态特定前置投射与可学习上下文 Prompt 注入}
-对于任意输入模态 $m$，首先通过线性投影层与 LayerNorm 将其投射至隐空间统一维度 $d_{\text{model}} = 256$：
-\begin{equation}
-\hat{h}_m[t] = \text{Dropout}\big(\text{GELU}(\text{LayerNorm}(\mathbf{W}_{\text{in}}^{(m)} X_m[t] + \mathbf{b}_{\text{in}}^{(m)}))\big)
-\end{equation}
-传统处理缺失的方法往往直接输入全零向量 $\mathbf{0}$，这会导致神经元产生非预期的偏置偏移，并在残差连接中传播假信号。为此，本文为易发生物理遮挡与信道故障的语音和视觉模态引入全局可学习缺失填充提示向量（Learnable Prompts）：$P_a, P_v \in \mathbb{R}^{1 \times 1 \times 256}$。提示向量与网络主体联合进行反向传播更新，自主学习完备数据集在缺失位置的统计先验表征。融合了动态提示的状态表示为：
-\begin{equation}
-\tilde{h}_m[t] = M_m[t] \cdot \hat{h}_m[t] + (1 - M_m[t]) \cdot P_m
-\end{equation}
+\subsection{缺失建模与训练}
+本文区分三种情况：原始数据中的真实缺失、训练阶段随机模拟的局部连续缺失，以及附件 3 中的真实专项缺失。训练增强在统一时间轴上随机选择连续区间，将对应模态的输入和 mask 同步置为缺失。缺失类型包括文本、音频、视觉及双模态组合，缺失位置包括前段、中段和后段。
 
-\subsubsection{2. 模态内双向门控循环单元 (Bi-GRU) 时序平滑}
-为充分利用未缺失时间步的前后语义支撑丢失区间，引入轻量化双向 GRU 编码器：
-\begin{align}
-\overrightarrow{u}_m[t] &= \text{GRU}_{\text{fwd}}(\tilde{h}_m[t], \overrightarrow{u}_m[t-1]) \\
-\overleftarrow{u}_m[t] &= \text{GRU}_{\text{bwd}}(\tilde{h}_m[t], \overleftarrow{u}_m[t+1]) \\
-u_m[t] &= \big[ \overrightarrow{u}_m[t] \,\|\, \overleftarrow{u}_m[t] \big] \in \mathbb{R}^{256}
-\end{align}
-并施加带有残差连接的层归一化：
-\begin{equation}
-h_m[t] = \text{LayerNorm}\big(\tilde{h}_m[t] + u_m[t]\big)
-\end{equation}
+训练损失采用加权交叉熵与 Smooth L1 回归损失的加权和。结构消融分别去除跨模态注意力、动态门控、缺失增强和缺失 mask，保持数据划分、训练轮数和三个 seed 不变。
 
-\subsubsection{3. 4头跨模态交叉注意力互补池 (4-Head MHCA)}
-在单模态时序编码完备后，为实现跨模态信息的双向流动与代偿，构建多头跨模态注意力网络（Multi-Head Cross-Modal Attention, MHCA）。以模态 $i$ 为查询（Query），以模态 $j$ 为键值对（Key-Value），并设定头数 $H = 4$，头维度 $d_k = 64$：
+\subsection{最终评估策略}
+三个 seed 分别保存验证集最佳 checkpoint。最终分类概率先求平均，再采用 Argmax：
 \begin{equation}
-\text{head}_k^{(i \leftarrow j)} = \text{softmax}\left(\frac{(h_i \mathbf{W}_{k,Q}^{(i)}) (h_j \mathbf{W}_{k,K}^{(j)})^T}{\sqrt{d_k}} + \mathbf{B}_{\text{valid}}^{(j)}\right) (h_j \mathbf{W}_{k,V}^{(j)})
+\widehat c=\arg\max_c\frac{1}{3}\sum_{s\in\{42,123,777\}}p_s(c).
 \end{equation}
-其中，有效注意力遮蔽偏置矩阵定义为：
-\begin{equation}
-\mathbf{B}_{\text{valid}}^{(j)}[t, t'] = \begin{cases}
-0, & \text{若 } M_j[t'] = 1 \\
--10^9, & \text{若 } M_j[t'] = 0 \ (\text{严格遮蔽缺失步长})
-\end{cases}
-\end{equation}
-该遮蔽机制确保了跨模态注意力只能从目标模态中真正存在信号的有效时步中汲取特征，从数学根源上杜绝了缺失噪声的跨模态横向传染。交叉注意力融合输出经过线性投射与残差更新：
-\begin{equation}
-h_i^{\text{cross}} = \text{LayerNorm}\left( h_i + \text{Dropout}\big(\text{Concat}(\text{head}_1, \dots, \text{head}_4) \mathbf{W}_O^{(i)}\big) \right)
-\end{equation}
-随后通过时序维度全局平均池化（Global Average Pooling）获取各模态的整段高维稠密表征：
-\begin{equation}
-\bar{h}_m = \frac{1}{\sum_{t=1}^L M_m[t] + \epsilon} \sum_{t=1}^L M_m[t] \cdot h_m^{\text{cross}}[t] \in \mathbb{R}^{256}
-\end{equation}
+最终测试指标为：Accuracy $66.30\%$，Macro-F1 $62.54\%$，MAE $0.6346$，Pearson $r=0.6630$。普通交叉熵和 Focal Loss 仅作为验证阶段比较方案，不根据测试集选择损失。
 
-\subsubsection{4. 冲突感知自适应门控机制 (Conflict-Aware Gating, CAG)}
-传统多模态门控融合多采用单层感知机直接输出各模态权重：$g = \text{softmax}(\mathbf{W} [\bar{h}_t, \bar{h}_a, \bar{h}_v])$。这种纯内容驱动的门控存在致命缺陷：当某模态完全丢失时，神经网络的激活值仍可能输出非零的虚假置信度，从而给丢失通道分配较大的权重。
-
-为了从根本上解决该问题，本文独创性地提出了\textbf{冲突感知自适应门控（CAG）}，其核心机理在于显式地将\textbf{跨模态特征余弦相似度}（度量内容一致性）与\textbf{模态有效时步先验比率}（度量物理完整性）作为不可逾越的先验输入：
-\begin{enumerate}
-    \item 计算模态两两之间的余弦一致性标量：
-    \begin{equation}
-    \text{sim}_{ta} = \frac{\bar{h}_t \cdot \bar{h}_a}{\|\bar{h}_t\|_2 \|\bar{h}_a\|_2}, \quad \text{sim}_{tv} = \frac{\bar{h}_t \cdot \bar{h}_v}{\|\bar{h}_t\|_2 \|\bar{h}_v\|_2}, \quad \text{sim}_{av} = \frac{\bar{h}_a \cdot \bar{h}_v}{\|\bar{h}_a\|_2 \|\bar{h}_v\|_2}
-    \end{equation}
-    \item 统计各模态在样本内部的有效时序比率：
-    \begin{equation}
-    \gamma_t = \frac{1}{L} \sum_{t=1}^L M_t[t], \quad \gamma_a = \frac{1}{L} \sum_{t=1}^L M_a[t], \quad \gamma_v = \frac{1}{L} \sum_{t=1}^L M_v[t]
-    \end{equation}
-    \item 构建复合门控特征向量：
-    \begin{equation}
-    \mathbf{v}_{\text{gate}} = \big[ \bar{h}_t, \bar{h}_a, \bar{h}_v, \gamma_t, \gamma_a, \gamma_v, \text{sim}_{ta}, \text{sim}_{tv}, \text{sim}_{av} \big]^T \in \mathbb{R}^{256 \times 3 + 3 + 3 = 774}
-    \end{equation}
-    \item 计算原始门控打分并通过物理先验进行非线性调制：
-    \begin{equation}
-    \tilde{g} = \text{softmax}\big( \mathbf{W}_2 \cdot \text{GELU}(\mathbf{W}_1 \mathbf{v}_{\text{gate}} + \mathbf{b}_1) + \mathbf{b}_2 \big) \in \mathbb{R}^3
-    \end{equation}
-    \begin{equation}
-    g_m = \frac{\tilde{g}_m \cdot (\gamma_m + \epsilon)}{\sum_{k \in \{t, a, v\}} \tilde{g}_k \cdot (\gamma_k + \epsilon)}
-    \end{equation}
-\end{enumerate}
-\textbf{CAG 门控的数学特性定理}：
-若模态 $m$ 完全丢失（即 $\gamma_m = 0$ 且 $\epsilon \to 0$），则其最终融合权重 $g_m \to 0$；此时网络会自动将所有权重平滑转移至存活模态上，实现了数学上严格的“无损信道切换”。图 \ref{fig:gate_dist} 直观展示了不同缺失工况下 CAG 门控权重的动态分布箱线图。
-
-\begin{figure}[htp!]
+\begin{table}[htbp]
 \centering
-\includegraphics[width=0.88\textwidth]{fig10_global_modality_gate_distribution.png}
-\caption{不同模态缺失工况下 CAG 门控动态权重分配箱线图（展现自适应代偿机制）}
-\label{fig:gate_dist}
-\end{figure}
-
-最终，多模态全局融合稠密向量由门控加权生成：
-\begin{equation}
-h_{\text{fused}} = g_t \bar{h}_t + g_a \bar{h}_a + g_v \bar{h}_v \in \mathbb{R}^{256}
-\end{equation}
-
-\subsection{多任务联合损失函数与序数拓扑惩罚 (WOD)}
-在监督学习阶段，为了平衡分类决策与连续强度拟合，本文构建了\textbf{多任务序数拓扑联合损失函数体系}。
-
-\subsubsection{1. 连续情感强度 Smooth L1 回归损失}
-由全局融合表征输入回归头输出预测标量 $\hat{y}_r = \text{Linear}(h_{\text{fused}}) \in \mathbb{R}$。采用对极端异常值具有鲁棒性的 Smooth L1 损失：
-\begin{equation}
-\mathcal{L}_{\text{reg}} = \frac{1}{B} \sum_{i=1}^B \text{smooth}_{L_1}(y_{r,i} - \hat{y}_{r,i})
-\end{equation}
-其中：
-\begin{equation}
-\text{smooth}_{L_1}(x) = \begin{cases}
-0.5 x^2, & \text{若 } |x| < 1 \\
-|x| - 0.5, & \text{其他}
-\end{cases}
-\end{equation}
-
-\subsubsection{2. 带类别不平衡平滑权重的交叉熵分类损失}
-针对正向、中性、负向样本量不均衡的客观事实（正向占 $49.7\%$），定义类别权重向量 $\mathbf{w}_{\text{cls}} = [1.15, 1.45, 0.70]$，以提高对稀缺类别（负向与中性）的关注度：
-\begin{equation}
-\mathcal{L}_{\text{cls}} = -\frac{1}{B} \sum_{i=1}^B \sum_{c=0}^2 \mathbf{w}_{\text{cls}}[c] \cdot \big((1 - \epsilon_{\text{ls}}) \mathbb{I}(y_{c,i} = c) + \frac{\epsilon_{\text{ls}}}{3}\big) \log P(\hat{y}_{c,i} = c)
-\end{equation}
-其中标签平滑系数设定为 $\epsilon_{\text{ls}} = 0.02$。
-
-\subsubsection{3. 基于最优传输理论的 Wasserstein 序数拓扑惩罚损失 (WOD)}
-传统分类交叉熵将所有类别视为彼此正交的独立符号，即：把“正向”预测为“负向”的惩罚与把“正向”预测为“中性”的惩罚完全相同。这在序数情感空间中是极其荒谬的。在最优传输（Optimal Transport）理论框架下，一维序数空间上的 Wasserstein 距离度量了将预测概率质量分布移动至真实 Dirac 分布所需的最小推土功（Earth Mover's Distance）。
-
-本文在离散类别空间上构建了二次方惩罚代价矩阵 $\mathbf{W}_{\text{ord}} \in \mathbb{R}^{3 \times 3}$：
-\begin{equation}
-\mathbf{W}_{\text{ord}}[j, k] = (j - k)^2 = \begin{bmatrix}
-0 & 1 & 4 \\
-1 & 0 & 1 \\
-4 & 1 & 0
-\end{bmatrix}
-\end{equation}
-则批量样本的 Wasserstein 序数拓扑损失定义为预测概率质量向量与真实类别代价向量的内积期望：
-\begin{equation}
-\mathcal{L}_{\text{WOD}} = \frac{1}{B} \sum_{i=1}^B \sum_{c=0}^2 P(\hat{y}_{c,i} = c) \cdot \mathbf{W}_{\text{ord}}[y_{c,i}, c]
-\end{equation}
-当模型将真实为负向（$0$）的样本预测为正向（$2$）时，代价乘数为 $4$；而预测为中性（$1$）时代价乘数仅为 $1$。该损失项在反向传播中为极端错误提供了强大的梯度排斥力，显著净化了分类边界的合理性。
-
-\subsubsection{4. 高斯软标签分布学习 (Gaussian LDL)}
-为了在连续强度 $y_r$ 与离散类别 $y_c$ 之间建立平滑的概率过渡桥梁，本文构建了高斯标签分布学习目标。对于任意样本，其连续真实分布向量 $q_i \in \Delta^2$ 由高斯核自适应生成：
-\begin{equation}
-q_i[c] = \frac{\exp\left( -\frac{(y_{r,i} - \mu_c)^2}{2 \sigma_{\text{ldl}}^2} \right)}{\sum_{k=0}^2 \exp\left( -\frac{(y_{r,i} - \mu_k)^2}{2 \sigma_{\text{ldl}}^2} \right)}
-\end{equation}
-其中各类别中心分别设定为 $\mu_0 = -1.5, \mu_1 = 0.0, \mu_2 = +1.5$。模型分类输出概率分布 $p_i$ 与真实软分布 $q_i$ 之间的相对熵（Kullback-Leibler 散度）为：
-\begin{equation}
-\mathcal{L}_{\text{LDL}} = \frac{1}{B} \sum_{i=1}^B D_{\text{KL}}(q_i \,\|\, p_i) = \frac{1}{B} \sum_{i=1}^B \sum_{c=0}^2 q_i[c] \log \frac{q_i[c]}{p_i[c]}
-\end{equation}
-
-\subsubsection{5. 总多任务联合优化目标}
-最终多任务联合优化损失函数定义为各损失分量的凸组合：
-\begin{equation}
-\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{cls}} + 0.8 \cdot \mathcal{L}_{\text{reg}} + 0.08 \cdot \mathcal{L}_{\text{WOD}} + 0.25 \cdot \mathcal{L}_{\text{LDL}}
-\end{equation}
-采用 AdamW 优化器，学习率设定为 $5 \times 10^{-4}$，配合两轮线性预热与余弦退火调度策略进行端到端优化。
-
-\subsection{独立测试集分类瓶颈深度溯源诊断 (中性临界区模糊性与混淆矩阵)}
-在训练完 3-Seed DRM-Net 深度网络后，我们在独立测试集（$N=727$）上对其执行了严格评测。此时 DRM-Net 的三分类准确率为 $66.02\%$，二分类准确率为 $81.02\%$。为查明三分类准确率始终难以突破 $68\%$ 的根本原因，本文计算并绘制了独立测试集的混淆矩阵，如图 \ref{fig:deep_cm} 所示：
-
-\begin{figure}[htp!]
-\centering
-\includegraphics[width=0.75\textwidth]{fig8_validation_confusion_matrix.png}
-\caption{独立测试集分类错误分布混淆矩阵热力图（精准定位中性低召回瓶颈）}
-\label{fig:deep_cm}
-\end{figure}
-
-混淆矩阵所揭示的各项类别独立性能指标如表 \ref{tab:error_diag} 所示：
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.3}
-\caption{DRM-Net 在独立测试集各类别上的精确率、召回率与 F1 指标诊断分析}
-\label{tab:error_diag}
-\begin{tabularx}{\textwidth}{|>{\centering\arraybackslash}p{0.19\textwidth}|>{\centering\arraybackslash}p{0.17\textwidth}|c|c|c|}
+\caption{最终模型与损失函数对照}
+\begin{tabular}{lcccc}
 \hline
-\textbf{类别名称} & \textbf{真实样本数 (Support)} & \textbf{精确率 (Precision)} & \textbf{召回率 (Recall)} & \textbf{F1 分数 (F1-Score)} \\ \hline
-负向情感 (Negative) & 207 & 69.1\% & 69.1\% & 69.1\% \\ \hline
-正向情感 (Positive) & 362 & 75.3\% & \textbf{76.8\%} & 76.0\% \\ \hline
-\textbf{中性情感 (Neutral)} & \textbf{158} & \textbf{44.4\%} & \textbf{42.4\%} & \textbf{43.4\%} \\ \hline
-\textbf{二分类基准 (Acc-2)} & 727 & \multicolumn{3}{c|}{\textbf{81.02\%} (高阶判别力完好)} \\ \hline
-\end{tabularx}
+方案 & Accuracy & Macro-F1 & MAE & Pearson $r$ \\ \hline
+加权交叉熵（最终） & 66.30\% & 62.54\% & 0.6346 & 0.6630 \\ 
+普通交叉熵 & 67.54\% & 59.33\% & 0.6344 & 0.6675 \\ 
+Focal Loss & 67.95\% & 60.96\% & 0.6284 & 0.6709 \\ \hline
+\end{tabular}
 \end{table}
 
-\textbf{关键诊断结论}：
-\begin{enumerate}
-    \item 模型的二分类能力极强（达 $81.02\%$），正向召回率达到惊人的 $76.8\%$，负向召回率亦达到 $69.1\%$；
-    \item \textbf{整体三分类准确率受阻的单一瓶颈完全在于中性类（Neutral）}！158 个中性样本中，多达 91 个被误判（30 个误判为负向，61 个误判为正向），召回率仅有 $42.4\%$；
-    \item \textbf{几何机理剖析}：传统深度分类头 $\hat{y} = \text{softmax}(\mathbf{W} h + b)$ 依赖于平直的连续超平面划分。然而由于中性样本在特征空间中同时散落着微弱正向与微弱负向的微表情特征，平直超平面在原点附近无法形成具有阶梯容忍度的“中性缓冲区”，极易被正向样本的大幅值输出所淹没。
-\end{enumerate}
-
-\subsection{突破 SOTA 的核心引擎：DTH-Champion 多深度拓扑元学习集成}
-上述诊断为攻破学术界 SOTA（$68.71\%$）指明了唯一的必由之路：\textbf{必须引入一种具备高阶非线性阶梯切分能力、能够在中性原点附近自适应构建局部正交超矩形边界的元学习机制}。为此，本文创新研发了 \textbf{DTH-Champion (Deep Topological Hybrid Champion Ensemble)}。
-
-\subsubsection{1. 261 维深度隐空间元特征表征矩阵构建}
-为了给元学习器提供极其丰富的高阶统计信息，本文打破传统仅将分类概率（3维）输入后处理的简单做法，从训练完备的 3-Seed DRM-Net 深度网络中提取了包含表征、置信度与强度的复合元向量：
-\begin{equation}
-\Phi_{\text{meta}} = \big[ h_{\text{fused}} \ (256\text{-d}), \ P_{\text{cls}} \ (3\text{-d}), \ \hat{y}_{\text{reg}} \ (1\text{-d}), \ |\hat{y}_{\text{reg}}| \ (1\text{-d}) \big] \in \mathbb{R}^{261}
-\end{equation}
-其中：
-\begin{itemize}
-    \item $h_{\text{fused}} \in \mathbb{R}^{256}$：包含了经过跨模态注意力与冲突门控提纯后的完整多模态语义信息；
-    \item $P_{\text{cls}} \in \Delta^2$：深度网络给出的初始三类别置信概率；
-    \item $\hat{y}_{\text{reg}} \in \mathbb{R}$：连续情感强度输出；
-    \item $|\hat{y}_{\text{reg}}| \in \mathbb{R}^+$：\textbf{绝对情感强度标量}。该特征具有至关重要的物理意义——它显式度量了样本距离零度中性点的绝对偏离欧氏距离，能够为树模型提供明确的中性切分分位数先验。
-\end{itemize}
-
-\subsubsection{2. 极端随机树 (ExtraTrees) 非线性阶梯切分与偏差-方差分解}
-极端随机树（Extremely Randomized Trees, ExtraTrees）\cite{geurts2006extremely}相较于传统随机森林，在每个分裂节点采用随机选择切分阈值的策略，具有极其优越的几何切分特性：
-\begin{itemize}
-    \item 它能够在高维连续空间中生成正交于坐标轴的超矩形盒状决策边界，非常契合“在中性原点附近构建安全盒状缓冲带”的几何需求；
-    \item 极限随机化极大地压低了基树之间的相关系数 $\rho_{\text{tree}}$。依据偏差-方差分解理论，集成模型的总方差满足：
-    \begin{equation}
-    \text{Var}(\hat{f}_{\text{ensemble}}) = \rho_{\text{tree}} \sigma^2 + \frac{1 - \rho_{\text{tree}}}{B} \sigma^2
-    \end{equation}
-    随着树数量 $B \to 300$，方差项被强力压缩，有效防止在高维隐表征上过拟合。
-\end{itemize}
-
-\subsubsection{3. 多深度拓扑基模型群构建与平滑软投票}
-为了进一步消除单一树深度带来的结构偏置，本文优选了由 3 组异构拓扑参数构建的 Top-3 冠军基模型群：
-\begin{itemize}
-    \item \textbf{模型 1（无约束深度探索）}：$\text{max\_depth} = \text{None}$, $\text{min\_samples\_split} = 6$, $\text{seed} = 123$（在独立测试集单模型即达到 68.78\%，500/727 正确）；
-    \item \textbf{模型 2（深层正则化约束）}：$\text{max\_depth} = 14$, $\text{min\_samples\_split} = 4$, $\text{seed} = 2026$（在独立测试集单模型达到 68.91\%，501/727 正确）；
-    \item \textbf{模型 3（中层平滑过渡）}：$\text{max\_depth} = 16$, $\text{min\_samples\_split} = 5$, $\text{seed} = 2024$（在独立测试集单模型达到 68.78\%，500/727 正确）。
-\end{itemize}
-最终决策采用三模型软概率矩阵等权平滑投票：
-\begin{equation}
-P_{\text{DTH}}(c \mid \Phi_{\text{meta}}) = \frac{1}{3} \sum_{k=1}^3 P_{\text{ET}, k}(c \mid \Phi_{\text{meta}})
-\end{equation}
-\begin{equation}
-\hat{y}_{\text{final}} = \arg\max_{c \in \{0, 1, 2\}} P_{\text{DTH}}(c \mid \Phi_{\text{meta}})
-\end{equation}
-
-\subsection{权威对比实验总表与突破 SOTA 认证}
-在 CMU-MOSEI 独立盲测测试集（$N=727$）上，全流程模型与学术界顶会已知最高公开纪录的横向对比结果如表 \ref{tab:sota_full} 所示：
-
-\begin{table}[htp!]
+\subsection{结构消融}
+\begin{table}[htbp]
 \centering
-\small
-\renewcommand\arraystretch{1.3}
-\caption{CMU-MOSEI 独立评测测试集 ($N=727$) 权威学术对比与突破 SOTA 认证总表}
-\label{tab:sota_full}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|c|c|c|c|c|p{0.18\textwidth}|}
+\caption{结构消融结果}
+\begin{tabular}{lcccc}
 \hline
-\textbf{模型类别 / 架构方案} & \textbf{三分类 Acc-3} & \textbf{二分类 Acc-2} & \textbf{Macro-F1} & \textbf{MAE} & \textbf{Pearson $r$} & \textbf{答对样本数 ($N=727$)} \\ \hline
-初始基线 (Baseline) & 60.30\% & 79.81\% & 59.79\% & 0.6362 & 0.6447 & 438 / 727 \\ \hline
-MulT (ACL 经典)\cite{tsai2019multimodal} & 64.77\% & 81.60\% & 60.10\% & 0.6480 & 0.6510 & 471 / 727 \\ \hline
-TFN (张量融合网络)\cite{zadeh2017tensor} & 65.12\% & 80.82\% & 60.45\% & 0.6510 & 0.6490 & 473 / 727 \\ \hline
-DRM-Net (本文 3-Seed 深度网络) & 66.02\% & 81.02\% & 61.34\% & 0.6429 & 0.6524 & 480 / 727 \\ \hline
-MISA (正交投影解耦)\cite{hazarika2020misa} & 66.80\% & 81.80\% & 61.90\% & 0.6410 & 0.6560 & 485 / 727 \\ \hline
-C2S-Net (本文级联解耦架构) & 67.40\% & 81.25\% & 62.26\% & 0.6380 & 0.6550 & 490 / 727 \\ \hline
-\hline
-\textit{学界最高纪录 (HTRN SOTA, 2024)\cite{htrn2024}} & \textit{68.71\%} & \textit{83.20\%} & \textit{--} & \textit{--} & \textit{--} & \textit{499.5 / 727} \\ \hline
-\textbf{DTH-Champion (本文终极集成)} & \textbf{69.05\%} & \textbf{81.98\%} & \textbf{63.16\%} & \textbf{0.6322} & \textbf{0.6634} & \textbf{502 / 727} (\textbf{+0.34\%}) \\ \hline
-\end{tabular}%
-}
+模型 & Accuracy & Macro-F1 & MAE & Pearson $r$ \\ \hline
+Full DRM-Net & 66.30\% & 62.54\% & 0.6346 & 0.6630 \\ 
+No Cross-Attention & 66.16\% & 62.17\% & 0.6231 & 0.6723 \\ 
+No Dynamic Gate & 66.16\% & 62.69\% & 0.6343 & 0.6597 \\ 
+No Missing Augmentation & 64.65\% & 60.83\% & 0.6360 & 0.6646 \\ 
+No Missing Mask & 65.75\% & 60.93\% & 0.6428 & 0.6541 \\ \hline
+\end{tabular}
 \end{table}
 
-\textbf{历史性突破的严格数理认证}：
-\begin{enumerate}
-    \item 测试集样本总数严格为 $N = 727$；
-    \item 学术界此前公开最高纪录为 HTRN 的 $68.71\%$，换算为答对题目数为 $727 \times 68.71\% \approx 499.52$ 题；
-    \item 本文 DTH-Champion 模型在盲测测试集上准确命中 **502 题**，准确率精准达到：
-    \begin{equation}
-    \text{Acc-3} = \frac{502}{727} = 69.05089\% \approx \mathbf{69.05\%}
-    \end{equation}
-    \item \textbf{净胜 SOTA 幅度达 $+0.34\%$（多正确答对 2.5 题）}，正式在相同离线预提取公开特征基准上全面改写了学术界纪录！二分类准确率达 $81.98\%$，二分类加权 F1 达 $82.23\%$，连续预测平均绝对误差压低至 $0.6322$，皮尔逊相关系数 $r$ 达 $0.6634$。
-\end{enumerate}
+缺失增强和缺失 mask 的去除带来更明显的 Macro-F1 下降，支持二者对缺失场景建模的作用。该结论仅针对已运行的实验设置，不外推到未测试的缺失比例或数据分布。
 
-图 \ref{fig:acc_evolution} 直观展示了从基线 60.30\%，经由 MulT、DRM-Net、C2S-Net，最终由 DTH-Champion 突破 SOTA 绿线的全景演进轨迹。
+\subsection{附件 3 专项推理}
+附件 3 共输出两套各 30 条记录，字段包括样本编号、缺失模态、缺失区间、预测极性、预测强度、不确定度和三模态门控权重。由于附件 3 无标签，本文不计算准确率、F1、MAE 或 Pearson。
 
-\begin{figure}[htp!]
-\centering
-\includegraphics[width=0.88\textwidth]{fig11_acc3_evolution_roadmap.png}
-\caption{多模态情感三分类准确率突破 SOTA 演进路线图（红色高亮标示突破幅度）}
-\label{fig:acc_evolution}
-\end{figure}
-
-DTH-Champion 突破 SOTA 后的最终测试集混淆矩阵如表 \ref{tab:champion_cm} 所示：
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.3}
-\caption{DTH-Champion 突破 SOTA 后的独立测试集最终分类性能报告}
-\label{tab:champion_cm}
-\begin{tabularx}{0.95\textwidth}{|c|c|c|c|c|c|}
-\hline
-\textbf{情感类别} & \textbf{预测负向 (0)} & \textbf{预测中性 (1)} & \textbf{预测正向 (2)} & \textbf{精确率 (Prec)} & \textbf{召回率 (Recall)} \\ \hline
-\textbf{真实负向 (0)} & \textbf{144} & 27 & 36 & 69.2\% & 69.6\% \\ \hline
-\textbf{真实中性 (1)} & 32 & \textbf{56} & 70 & \textbf{50.5\%} & 35.4\% \\ \hline
-\textbf{真实正向 (2)} & 32 & 28 & \textbf{302} & 74.0\% & \textbf{83.4\%} \\ \hline
-\textbf{总体统计} & \multicolumn{3}{c|}{\textbf{命中 502 / 727 样本}} & \textbf{Acc-3: 69.05\%} & \textbf{F1: 63.16\%} \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsection{18 组抗模态局部缺失消融实验全景剖析}
-为了全面检验模型在各种恶劣通信与硬件故障工况下的容错生存能力，本文设计并执行了涵盖三大维度共 18 组严格受控的消融实验。消融汇总结果如表 \ref{tab:ablation_all} 所示：
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.25}
-\caption{全套 18 组模态局部随机缺失情境消融实验评测数据汇总表}
-\label{tab:ablation_all}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|l|c|c|c|c|c|}
-\hline
-\textbf{消融实验组} & \textbf{缺失工况设定说明} & \textbf{三分类 Acc-3} & \textbf{二分类 Acc-2} & \textbf{Macro-F1} & \textbf{MAE} & \textbf{衰减幅度 $\Delta$Acc} \\ \hline
-\textbf{完备工况 (基准)} & 三模态信号完整无缺失 & \textbf{69.05\%} & \textbf{81.98\%} & \textbf{63.16\%} & \textbf{0.6322} & \textbf{0.00\% (最优)} \\ \hline
-\hline
-\multirow{6}{*}{\makecell{维度一：\\模态缺失类型\\(图 \ref{fig:ab_type})}} 
-& 仅视觉模态缺失 (Missing Vision) & 67.81\% & 81.29\% & 62.45\% & 0.6395 & -1.24\% \\ \cline{2-7}
-& 仅语音模态缺失 (Missing Audio) & 66.71\% & 80.74\% & 61.80\% & 0.6430 & -2.34\% \\ \cline{2-7}
-& 仅文本模态缺失 (Missing Text) & 62.17\% & 77.85\% & 59.12\% & 0.6720 & -6.88\% \\ \cline{2-7}
-& 缺失语音+视觉 (仅剩纯文本) & 65.20\% & 80.19\% & 60.95\% & 0.6515 & -3.85\% \\ \cline{2-7}
-& 缺失文本+视觉 (仅剩纯语音) & 59.83\% & 76.20\% & 57.30\% & 0.6910 & -9.22\% \\ \cline{2-7}
-& 缺失文本+语音 (仅剩纯视觉) & 58.46\% & 75.10\% & 56.10\% & 0.7045 & -10.59\% \\ \hline
-\hline
-\multirow{4}{*}{\makecell{维度二：\\缺失时序位置\\(图 \ref{fig:ab_pos})}} 
-& 时序前段缺失 (0\%$\sim$30\% 步长) & 67.54\% & 81.16\% & 62.10\% & 0.6385 & -1.51\% \\ \cline{2-7}
-& 时序中段缺失 (35\%$\sim$65\% 步长) & 66.85\% & 80.88\% & 61.75\% & 0.6420 & -2.20\% \\ \cline{2-7}
-& 时序后段缺失 (70\%$\sim$100\% 步长) & 67.40\% & 81.02\% & 62.05\% & 0.6390 & -1.65\% \\ \cline{2-7}
-& 随机切片突发丢包 (40\% 随机缺失) & 66.99\% & 80.95\% & 61.82\% & 0.6415 & -2.06\% \\ \hline
-\hline
-\multirow{7}{*}{\makecell{维度三：\\缺失时长衰减\\(图 \ref{fig:ab_decay})}} 
-& 缺失比例 $\rho = 10\%$ & 68.64\% & 81.71\% & 62.90\% & 0.6340 & -0.41\% \\ \cline{2-7}
-& 缺失比例 $\rho = 20\%$ & 68.23\% & 81.43\% & 62.65\% & 0.6365 & -0.82\% \\ \cline{2-7}
-& 缺失比例 $\rho = 30\%$ & 67.54\% & 81.16\% & 62.20\% & 0.6390 & -1.51\% \\ \cline{2-7}
-& 缺失比例 $\rho = 40\%$ & 66.85\% & 80.74\% & 61.60\% & 0.6435 & -2.20\% \\ \cline{2-7}
-& 缺失比例 $\rho = 50\%$ & 65.89\% & 80.05\% & 61.10\% & 0.6490 & -3.16\% \\ \cline{2-7}
-& 缺失比例 $\rho = 60\%$ & 64.24\% & 79.23\% & 59.85\% & 0.6580 & -4.81\% \\ \cline{2-7}
-& \textbf{极限缺失 $\rho = 70\%$} & \textbf{62.45\%} & \textbf{78.13\%} & \textbf{58.70\%} & \textbf{0.6690} & \textbf{-6.60\%} \\ \hline
-\end{tabular}%
-}
-\end{table}
-
-\begin{figure}[htp!]
-\centering
-\subfloat[模态缺失类型消融曲线]{\includegraphics[width=0.32\textwidth]{fig1_missing_modality_type.png}\label{fig:ab_type}}\hfill
-\subfloat[缺失时序位置消融曲线]{\includegraphics[width=0.32\textwidth]{fig2_missing_position.png}\label{fig:ab_pos}}\hfill
-\subfloat[缺失时长衰减消融曲线]{\includegraphics[width=0.32\textwidth]{fig3_missing_duration_decay.png}\label{fig:ab_decay}}
-\caption{全套 18 组多模态时序局部缺失严苛消融实验三联图}
-\end{figure}
-
-\textbf{消融实验深度讨论}：
-\begin{enumerate}
-    \item \textbf{模态主次规律}：文本是支撑情感识别的中流砥柱，纯文本仍能达到 $65.20\%$ 准确率；纯视听模态在没有文本语境的情况下性能下降至 $58\%\sim 59\%$，但依然显著超越随机猜测基准（$33.3\%$），证明面部表情与语调蕴含明确的情感判别信号；
-    \item \textbf{时序容错一致性}：前段、中段、后段缺失的性能衰减差异极小（波动在 $0.7\%$ 以内），证明 Bi-GRU 双向上下文编码器在前后向信息平滑代偿方面具备高度对称性；
-    \item \textbf{极限丢包抗毁力}：即使面对 $70\%$ 极高丢包率的灾难性工况，本文模型的准确率仅下降 $6.6\%$（维持在 $62.45\%$），而基线模型在 $50\%$ 丢包时即彻底崩溃至 $52\%$。CAG 门控与可学习 Prompt 在工程实践中展现出卓越的生存能力。
-\end{enumerate}
-
-\subsection{附件 3 模态局部缺失专项测试集预测结果深度分析}
-依据上述训练完备的 DTH-Champion 最终融合引擎，我们对赛题附件 3 包含各类局部缺失的 30 个专项测试样本执行了完整的前向推断。预测结果不仅给出了离散极性判断与连续强度，更完整记录了 CAG 门控给出的模态置信分配，全部 30 条样本数据已规范保存在交付文件 \texttt{problem2\_robust/附件3\_模态局部缺失专项测试集预测结果.csv} 中。
-
-表 \ref{tab:att3_demo} 节选了附件 3 中具有代表性缺失模式的预测表现：
-
-\begin{table}[htp!]
-\centering
-\small
-\renewcommand\arraystretch{1.3}
-\caption{附件 3 模态局部缺失专项测试集预测结果 (代表性样本精选展示)}
-\label{tab:att3_demo}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|c|c|p{0.28\textwidth}|c|c|p{0.22\textwidth}|}
-\hline
-\textbf{样本序号} & \textbf{测试集文件识别名} & \textbf{缺失模式特征描述} & \textbf{预测极性} & \textbf{预测强度} & \textbf{门控权重分配 ($g_t, g_a, g_v$)} \\ \hline
-01 & sample\_01.pkl & 视觉模态后段缺失 (步长 30$\sim$50) & Positive & +1.2450 & 文本: 0.65, 语音: 0.28, 视觉: 0.07 \\ \hline
-04 & sample\_04.pkl & 语音模态中段突发丢包 (步长 15$\sim$35) & Negative & -1.8210 & 文本: 0.72, 语音: 0.05, 视觉: 0.23 \\ \hline
-09 & sample\_09.pkl & 文本模态前段受损 (步长 0$\sim$20) & Neutral & +0.0520 & 文本: 0.22, 语音: 0.45, 视觉: 0.33 \\ \hline
-15 & sample\_15.pkl & 语音+视觉双模态大比例重度缺失 & Positive & +0.8920 & 文本: 0.88, 语音: 0.06, 视觉: 0.06 \\ \hline
-22 & sample\_22.pkl & 视觉完好，语音轻微抖动 & Negative & -0.9450 & 文本: 0.60, 语音: 0.15, 视觉: 0.25 \\ \hline
-30 & sample\_30.pkl & 全模态微弱噪声干扰 & Positive & +1.5120 & 文本: 0.58, 语音: 0.22, 视觉: 0.20 \\ \hline
-\end{tabular}%
-}
-\end{table}
-
-从表 \ref{tab:att3_demo} 可以明显验证：当样本 04 语音发生中段缺失时，CAG 门控瞬间将语音权重压缩至仅 $0.05$，而将注意力平滑转移至文本（$0.72$）与视觉（$0.23$）；当样本 15 发生视听双缺失时，文本通道权重自适应提升至 $0.88$。这充分证明了模型在无人工干预下自主应对信道突发故障的智能调节特性。
