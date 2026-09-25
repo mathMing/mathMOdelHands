@@ -1,0 +1,4 @@
+loss_mode,accuracy,macro_f1,mae,pearson,selection_note
+weighted_ce,0.6630,0.6254,0.6346,0.6630,final_candidate_by_validation_macro_f1
+ordinary_ce,0.6754,0.5933,0.6344,0.6675,higher_accuracy_but_lower_macro_f1
+focal,0.6795,0.6096,0.6284,0.6709,higher_accuracy_but_lower_macro_f1

@@ -1,0 +1,94 @@
+\contentsline {section}{\numberline {1}问题重述、背景机理与学术前沿文献综述}{5}{section.1}%
+\contentsline {subsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 1}研究背景与多模态情感分析的现实需求}{5}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 2}多模态情感计算面临的三大核心理论与工程挑战}{5}{subsection.1.2}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 1}挑战一：多源感知信号的时序异构异步与语义非对齐难题}{5}{subsubsection.1.2.1}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 2}挑战二：通信抖动与硬件故障诱发的局部突发模态连续丢失}{6}{subsubsection.1.2.2}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 3}挑战三：情感零度临界区由于人类主观标注分歧引发的中性决策边界模糊性}{6}{subsubsection.1.2.3}%
+\contentsline {subsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 3}赛题具体任务的系统性重述与数学抽象}{7}{subsection.1.3}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 1}问题一任务重述：未对齐多模态时序特征的高保真动态对齐与融合}{7}{subsubsection.1.3.1}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 2}问题二任务重述：抗模态局部缺失的鲁棒情感识别与顶会 SOTA 突破}{7}{subsubsection.1.3.2}%
+\contentsline {subsubsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 3}问题三任务重述：多模态协同因果归因与双层细粒度时序可解释性分析}{7}{subsubsection.1.3.3}%
+\contentsline {subsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 4}国内外学术前沿发展脉络与经典范式演进}{8}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1\hskip 0.05em\relax .\hskip 0.05em\relax 5}本文核心创新贡献与全景研究路线}{9}{subsection.1.5}%
+\contentsline {section}{\numberline {2}数据探索性分析 (EDA)、统计特性与符号假设系统}{10}{section.2}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 1}CMU-MOSEI 数据集结构全景解剖与特征提取机制}{10}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 2}多模态时序异步性与采样率分布统计分析}{10}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 3}情感标签统计分布与不平衡性解剖}{11}{subsection.2.3}%
+\contentsline {subsubsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 1}连续情感强度回归标签分布}{11}{subsubsection.2.3.1}%
+\contentsline {subsubsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 2}离散三分类样本类别比例分布}{11}{subsubsection.2.3.2}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 4}零度临界区样本的统计特征与主观标注分歧量化}{12}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 5}模型的合理假设系统与数学正当性论证}{13}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2\hskip 0.05em\relax .\hskip 0.05em\relax 6}核心数学符号与变量系统说明表}{14}{subsection.2.6}%
+\contentsline {section}{\numberline {3}问题一：基于动态时间规整与多头交叉注意力的自适应对齐模型}{15}{section.3}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 1}跨模态时序异步问题的形式化数学描述}{15}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 2}动态时间规整 (Dynamic Time Warping, DTW) 数学机理与递推推导}{15}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 1}局部距离测度构建}{15}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 2}累积代价矩阵与动态规划方程}{16}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 3}Sakoe-Chiba 全局约束带加速}{16}{subsubsection.3.2.3}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 3}算法设计与伪代码实现}{16}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 4}跨模态多头缩放点积注意力时间重采样机制}{17}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 5}对齐质量多维度量化评估与可视化检验}{18}{subsection.3.5}%
+\contentsline {subsubsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 1}信息论互信息提升度量}{18}{subsubsection.3.5.1}%
+\contentsline {subsubsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 2}时序弯曲路径几何稳定性分析}{18}{subsubsection.3.5.2}%
+\contentsline {subsection}{\numberline {3\hskip 0.05em\relax .\hskip 0.05em\relax 6}数据集标准化预处理流水线落地}{19}{subsection.3.6}%
+\contentsline {section}{\numberline {4}问题二：抗模态缺失鲁棒表征网络与 DTH-Champion 情感分类模型}{20}{section.4}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 1}模态局部随机缺失的形式化数学建模}{20}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 2}动态鲁棒多模态网络 (DRM-Net) 体系架构设计}{20}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 1}1. 模态特定前置投射与可学习上下文 Prompt 注入}{20}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 2}2. 模态内双向门控循环单元 (Bi-GRU) 时序平滑}{21}{subsubsection.4.2.2}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 3}3. 4头跨模态交叉注意力互补池 (4-Head MHCA)}{21}{subsubsection.4.2.3}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 4}4. 冲突感知自适应门控机制 (Conflict-Aware Gating, CAG)}{22}{subsubsection.4.2.4}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3}多任务联合损失函数与序数拓扑惩罚 (WOD)}{22}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 1}1. 连续情感强度 Smooth L1 回归损失}{23}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 2}2. 带类别不平衡平滑权重的交叉熵分类损失}{23}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 3}3. 基于最优传输理论的 Wasserstein 序数拓扑惩罚损失 (WOD)}{24}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 4}4. 高斯软标签分布学习 (Gaussian LDL)}{24}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 5}5. 总多任务联合优化目标}{24}{subsubsection.4.3.5}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 4}独立测试集分类瓶颈深度溯源诊断 (中性临界区模糊性与混淆矩阵)}{25}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 5}突破 SOTA 的核心引擎：DTH-Champion 多深度拓扑元学习集成}{26}{subsection.4.5}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 1}1. 261 维深度隐空间元特征表征矩阵构建}{26}{subsubsection.4.5.1}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 2}2. 极端随机树 (ExtraTrees) 非线性阶梯切分与偏差-方差分解}{26}{subsubsection.4.5.2}%
+\contentsline {subsubsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 3}3. 多深度拓扑基模型群构建与平滑软投票}{27}{subsubsection.4.5.3}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 6}权威对比实验总表与突破 SOTA 认证}{27}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 7}18 组抗模态局部缺失消融实验全景剖析}{28}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4\hskip 0.05em\relax .\hskip 0.05em\relax 8}附件 3 模态局部缺失专项测试集预测结果深度分析}{30}{subsection.4.8}%
+\contentsline {section}{\numberline {5}问题三：多模态协同归因与双层细粒度时序可解释性分析模型}{31}{section.5}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 1}双层协同归因方法论与公理化可信准则}{31}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 2}宏观层：模态动态贡献度定量归因数学模型}{31}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 1}1. 积分梯度 (Integrated Gradients) 沿直线路径积分}{31}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 2}2. 模态绝对与相对贡献百分比定义}{32}{subsubsection.5.2.2}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 3}宏观模态协同规律全景剖析}{32}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 4}微观层：细粒度时序显著性与视听关键证据定位}{33}{subsection.5.4}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 1}1. 时序注意力回滚算子 (Temporal Attention Rollout)}{33}{subsubsection.5.4.1}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 2}2. 关键时步波峰自适应提取算法}{33}{subsubsection.5.4.2}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 3}3. 物理时间戳 (秒) 与关键视频帧号 (Frame) 精确映射}{33}{subsubsection.5.4.3}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 4}4. 文本核心情感关键词句反向定位}{34}{subsubsection.5.4.4}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 5}多模态决策证据卡片可视化解析}{34}{subsection.5.5}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 1}正向样本 test\_04 深度因果解析}{34}{subsubsection.5.5.1}%
+\contentsline {subsubsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 5\hskip 0.05em\relax .\hskip 0.05em\relax 2}负向样本 test\_02 深度因果解析}{34}{subsubsection.5.5.2}%
+\contentsline {subsection}{\numberline {5\hskip 0.05em\relax .\hskip 0.05em\relax 6}附件 4 可解释专项测试集全量 20 个样本预测与归因结果交付}{35}{subsection.5.6}%
+\contentsline {section}{\numberline {6}三项任务的逻辑链、数据闭环与结论边界}{37}{section.6}%
+\contentsline {subsection}{\numberline {6\hskip 0.05em\relax .\hskip 0.05em\relax 1}数据分层与信息使用边界}{37}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6\hskip 0.05em\relax .\hskip 0.05em\relax 2}问题一：从原始视频到统一时序特征}{37}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6\hskip 0.05em\relax .\hskip 0.05em\relax 3}问题二：局部缺失、鲁棒预测与专项推理}{38}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6\hskip 0.05em\relax .\hskip 0.05em\relax 4}问题三：遮挡敏感性与局部证据定位}{38}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6\hskip 0.05em\relax .\hskip 0.05em\relax 5}数据闭环与结论边界}{39}{subsection.6.5}%
+\contentsline {section}{\numberline {7}模型评价、敏感性与摄动鲁棒性分析及工业级推广}{40}{section.7}%
+\contentsline {subsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 1}模型的综合优缺点客观评价 (Strengths and Weaknesses)}{40}{subsection.7.1}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 1\hskip 0.05em\relax .\hskip 0.05em\relax 1}模型核心优势 (Strengths)}{40}{subsubsection.7.1.1}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 1\hskip 0.05em\relax .\hskip 0.05em\relax 2}模型局限性与潜在不足 (Weaknesses)}{40}{subsubsection.7.1.2}%
+\contentsline {subsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 2}严谨的敏感性分析与摄动鲁棒性验证 (Sensitivity and Perturbation Robustness)}{42}{subsection.7.2}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 1}高斯白噪声注入摄动分析 (Additive Gaussian Noise Robustness)}{42}{subsubsection.7.2.1}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 2}特征随机失真与局部 Dropout 摄动上下界证明与验证}{43}{subsubsection.7.2.2}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 2\hskip 0.05em\relax .\hskip 0.05em\relax 3}模型关键超参数网格敏感性分析}{44}{subsubsection.7.2.3}%
+\contentsline {subsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 3}模型的演进局限性与未来发展路线图 (Future Roadmap)}{46}{subsection.7.3}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 1}大语言模型 (LLM) 与原生感知端到端联合微调}{46}{subsubsection.7.3.1}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 2}面向中性标注底噪的自适应半监督清洗与置信学习}{46}{subsubsection.7.3.2}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 3\hskip 0.05em\relax .\hskip 0.05em\relax 3}跨语种、跨文化与零样本迁移泛化 (Cross-lingual / Zero-shot Transfer)}{46}{subsubsection.7.3.3}%
+\contentsline {subsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 4}工业级落地应用场景与领域泛化拓展}{47}{subsection.7.4}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 1}医疗健康：临床心理疾病与抑郁症早期数字化筛查}{47}{subsubsection.7.4.1}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 2}智能座舱：驾驶员疲劳、愤怒与路怒症实时感知预警}{47}{subsubsection.7.4.2}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 3}金融与电商：智能客服争议仲裁与直播带货舆情瞬态捕捉}{47}{subsubsection.7.4.3}%
+\contentsline {subsubsection}{\numberline {7\hskip 0.05em\relax .\hskip 0.05em\relax 4\hskip 0.05em\relax .\hskip 0.05em\relax 4}边缘端轻量化部署与实时推理延迟测试 (Edge Inference Benchmark)}{48}{subsubsection.7.4.4}%
+\contentsline {section}{参考文献}{49}{section*.28}%
+\contentsfinish 

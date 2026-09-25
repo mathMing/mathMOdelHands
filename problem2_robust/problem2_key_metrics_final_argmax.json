@@ -1,0 +1,28 @@
+{
+  "task": "问题二：多模态鲁棒模型",
+  "evaluation_strategy": "3-seed ensemble probability mean followed by Argmax",
+  "selected_loss": "weighted_ce",
+  "seeds": [42, 123, 777],
+  "test_set_used_for_model_selection": false,
+  "metrics": {
+    "Accuracy_3Class": 0.6630,
+    "Macro_F1_3Class": 0.6254,
+    "MAE": 0.6346,
+    "Pearson_r": 0.6630
+  },
+  "comparison_only": {
+    "ordinary_ce": {
+      "Accuracy_3Class": 0.6754,
+      "Macro_F1_3Class": 0.5933,
+      "MAE": 0.6344,
+      "Pearson_r": 0.6675
+    },
+    "focal": {
+      "Accuracy_3Class": 0.6795,
+      "Macro_F1_3Class": 0.6096,
+      "MAE": 0.6284,
+      "Pearson_r": 0.6709
+    }
+  },
+  "note": "The weighted-CE model is retained because validation Macro-F1 and class balance were prioritized. Ordinary-CE and focal results are comparison experiments, not selected using test performance."
+}

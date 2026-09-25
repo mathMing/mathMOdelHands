@@ -16,7 +16,9 @@ from scipy.stats import pearsonr
 # ================= 配置区域 =================
 ROOT_DIR = "/root/E_Problem" if os.path.exists("/root/E_Problem") else r"X:\mathModelHands"
 PKL_PATH = os.path.join(ROOT_DIR, "DATA", "Att2-Extracted-Features", "aligned_50.pkl")
-SAVE_DIR = os.path.join(ROOT_DIR, "problem2_robust")
+EXPERIMENT_NAME = os.environ.get('EXPERIMENT_NAME', 'full_drm_net')
+SAVE_DIR = os.path.join(ROOT_DIR, "problem2_robust", "experiments", EXPERIMENT_NAME)
+os.makedirs(SAVE_DIR, exist_ok=True)
 MODEL_PATH = os.path.join(SAVE_DIR, "best_robust_model.pt")
 
 BATCH_SIZE = 32
@@ -28,6 +30,11 @@ D_MODEL = 256
 NUM_HEADS = 4
 # 3个黄金种子集成 (针对 3050 本地环境兼顾效率与理论最优)
 SEEDS = [42, 123, 777] 
+USE_CROSS_ATTENTION = os.environ.get('USE_CROSS_ATTENTION', '1') == '1'
+USE_DYNAMIC_GATE = os.environ.get('USE_DYNAMIC_GATE', '1') == '1'
+USE_MISSING_AUGMENTATION = os.environ.get('USE_MISSING_AUGMENTATION', '1') == '1'
+USE_MISSING_MASK = os.environ.get('USE_MISSING_MASK', '1') == '1'
+LOSS_MODE = os.environ.get('LOSS_MODE', 'weighted_ce')
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ==========================================
 
@@ -52,6 +59,21 @@ def compute_metrics(cls_preds, cls_targets, reg_preds, reg_targets):
     f1_2 = f1_score((reg_targets >= 0).astype(int), (reg_preds >= 0).astype(int), average='weighted', zero_division=0)
     return acc3, f1_3, acc2, f1_2, mae, r
 
+def effective_masks(mt, ma, mv):
+    if not USE_MISSING_MASK:
+        return torch.ones_like(mt), torch.ones_like(ma), torch.ones_like(mv)
+    return mt, ma, mv
+
+def classification_loss(logits, targets):
+    if LOSS_MODE == 'ordinary_ce':
+        return F.cross_entropy(logits, targets, label_smoothing=0.03)
+    if LOSS_MODE == 'focal':
+        ce = F.cross_entropy(logits, targets, reduction='none')
+        pt = torch.exp(-ce)
+        return (((1.0 - pt) ** 2.0) * ce).mean()
+    class_weights = torch.tensor([1.15, 1.45, 0.70], dtype=torch.float32, device=DEVICE)
+    return F.cross_entropy(logits, targets, weight=class_weights, label_smoothing=0.03)
+
 def evaluate_loader(model, loader):
     model.eval()
     all_logits, all_regs = [], []
@@ -69,6 +91,7 @@ def evaluate_loader(model, loader):
             mt = batch['mask_t'].to(DEVICE)
             ma = batch['mask_a'].to(DEVICE)
             mv = batch['mask_v'].to(DEVICE)
+            mt, ma, mv = effective_masks(mt, ma, mv)
             
             c_target = batch['cls_label'].to(DEVICE)
             r_target = batch['reg_label'].to(DEVICE)
@@ -119,10 +142,10 @@ def train_single_seed(seed, train_loader, valid_loader, train_set):
     print(f"\n==================== 开始训练 Seed {seed} 深度鲁棒模型 ====================")
     
     from model import RobustMultimodalModel
-    model = RobustMultimodalModel(d_model=D_MODEL, num_heads=NUM_HEADS).to(DEVICE)
+    model = RobustMultimodalModel(d_model=D_MODEL, num_heads=NUM_HEADS,
+                                 use_cross_attention=USE_CROSS_ATTENTION,
+                                 use_dynamic_gate=USE_DYNAMIC_GATE).to(DEVICE)
     
-    class_weights = torch.tensor([1.15, 1.45, 0.70], dtype=torch.float32).to(DEVICE)
-    cls_criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.03)
     reg_criterion = nn.SmoothL1Loss()
     
     # 序数拓扑惩罚矩阵 (Wasserstein Ordinal Penalty)
@@ -153,6 +176,7 @@ def train_single_seed(seed, train_loader, valid_loader, train_set):
             mt_s = batch['mask_t'].to(DEVICE)
             ma_s = batch['mask_a'].to(DEVICE)
             mv_s = batch['mask_v'].to(DEVICE)
+            mt_s, ma_s, mv_s = effective_masks(mt_s, ma_s, mv_s)
             
             c_target = batch['cls_label'].to(DEVICE)
             r_target = batch['reg_label'].to(DEVICE)
@@ -176,7 +200,7 @@ def train_single_seed(seed, train_loader, valid_loader, train_set):
             logits_student = out_s['cls_logits']
             reg_student = out_s['reg_output']
             
-            loss_c = cls_criterion(logits_student, c_target)
+            loss_c = classification_loss(logits_student, c_target)
             loss_r = reg_criterion(reg_student, r_target)
             
             # 1. 难度自适应蒸馏 (Difficulty-Aware Adaptive Distillation, 参考 ICCV 2025 CMAD)
@@ -251,7 +275,8 @@ def train():
     from model import RobustMultimodalModel
     
     print(f"正在加载附件2对齐特征数据: {PKL_PATH}")
-    train_loader, valid_loader, test_loader, train_set = get_dataloaders(PKL_PATH, batch_size=BATCH_SIZE)
+    train_loader, valid_loader, test_loader, train_set = get_dataloaders(
+        PKL_PATH, batch_size=BATCH_SIZE, augment_missing=USE_MISSING_AUGMENTATION)
     print(f"数据加载就绪: Train={len(train_loader.dataset)}, Valid={len(valid_loader.dataset)}, Test={len(test_loader.dataset)}")
     
     trained_models = []
@@ -359,8 +384,11 @@ def train():
     print(f"\n【贝叶斯动态阈值校准边界 (Base [-{th_neg:.3f}, +{th_pos:.3f}], Gamma={best_gamma:.3f})】:")
     print(f"  校准后测试集 Acc-3: {cal_acc3*100:.2f}% | 校准后 Macro-F1: {cal_f1_3*100:.2f}%")
     
-    final_acc3 = cal_acc3
-    final_f1_3 = cal_f1_3
+    # Final locked strategy: validation-selected Argmax ensemble.
+    # BUDT is retained only as a validation comparison and is not reported
+    # as the final test strategy because it underperformed Argmax.
+    final_acc3 = test_ens['acc3']
+    final_f1_3 = test_ens['f1_3']
     final_acc2 = test_ens['acc2']
     final_f1_2 = test_ens['f1_2']
     final_mae = test_ens['mae']
@@ -393,7 +421,15 @@ def train():
             'MAE': round(float(overall_best_ckpt['val_metrics'][4]), 4),
             'Pearson_r': round(float(overall_best_ckpt['val_metrics'][5]), 4)
         },
-        'ensemble_calibrated_metrics': overall_best_ckpt['ensemble_calibrated_metrics']
+        'ensemble_argmax_metrics': {
+            'Accuracy_3Class': round(float(final_acc3), 4),
+            'Macro_F1_3Class': round(float(final_f1_3), 4),
+            'Accuracy_2Class_Benchmark': round(float(final_acc2), 4),
+            'Weighted_F1_2Class': round(float(final_f1_2), 4),
+            'MAE': round(float(final_mae), 4),
+            'Pearson_r': round(float(final_r), 4)
+        },
+        'budt_comparison_metrics': overall_best_ckpt['ensemble_calibrated_metrics']
     }
     with open(os.path.join(SAVE_DIR, "problem2_key_metrics.json"), 'w', encoding='utf-8') as f:
         json.dump(p2_data, f, ensure_ascii=False, indent=4)
@@ -409,7 +445,7 @@ def train():
             '皮尔逊相关系数 (Pearson r)': round(float(overall_best_ckpt['val_metrics'][5]), 4)
         },
         {
-            '评估方案': '3-Seed 加权集成与序数校准 (Ensemble Calibrated + BUDT)',
+            '评估方案': '3-Seed 概率集成 Argmax (Final Locked Strategy)',
             '三分类准确率 (Acc-3)': f"{float(final_acc3)*100:.2f}%",
             '三分类宏 F1 (Macro-F1)': f"{float(final_f1_3)*100:.2f}%",
             '二分类基准准确率 (Acc-2)': f"{float(final_acc2)*100:.2f}%",

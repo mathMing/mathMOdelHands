@@ -1,0 +1,152 @@
+{
+    "total_val_samples": 728,
+    "accuracy_3class": 0.6318681318681318,
+    "mae": 0.600135326385498,
+    "pearson_r": 0.6404440402984619,
+    "global_modality_weights": {
+        "text_mean_gate": 0.6427204012870789,
+        "vision_mean_gate": 0.15918251872062683,
+        "audio_mean_gate": 0.19809554517269135,
+        "text_normalized_pct": 64.2721387748464,
+        "vision_normalized_pct": 15.918276303745198,
+        "audio_normalized_pct": 19.809584921408398
+    },
+    "total_misclassified": 268,
+    "error_distribution": {
+        "中性边界敏感漂移": 89,
+        "弱情感混淆": 111,
+        "严重极性倒置": 68
+    },
+    "typical_error_cases": [
+        {
+            "index": 554,
+            "id": "f_ZJ7L14oYQ$_$21",
+            "true_cls": 2,
+            "pred_cls": 0,
+            "true_reg": 2.0,
+            "pred_reg": -1.8772462606430054,
+            "abs_error": 3.8772462606430054,
+            "gate_text": 0.6925260424613953,
+            "gate_audio": 0.13547147810459137,
+            "gate_vision": 0.17200112342834473,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 50,
+            "id": "130456$_$11",
+            "true_cls": 2,
+            "pred_cls": 0,
+            "true_reg": 1.6666666269302368,
+            "pred_reg": -1.6565736532211304,
+            "abs_error": 3.323240280151367,
+            "gate_text": 0.5239486694335938,
+            "gate_audio": 0.2584783732891083,
+            "gate_vision": 0.21757173538208008,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 119,
+            "id": "266791$_$23",
+            "true_cls": 0,
+            "pred_cls": 2,
+            "true_reg": -2.6666667461395264,
+            "pred_reg": 0.4764259159564972,
+            "abs_error": 3.1430926620960236,
+            "gate_text": 0.6390815377235413,
+            "gate_audio": 0.19822923839092255,
+            "gate_vision": 0.16268803179264069,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 14,
+            "id": "102408$_$5",
+            "true_cls": 0,
+            "pred_cls": 2,
+            "true_reg": -2.0,
+            "pred_reg": 0.9026821255683899,
+            "abs_error": 2.90268212556839,
+            "gate_text": 0.5237138271331787,
+            "gate_audio": 0.34075692296028137,
+            "gate_vision": 0.1355278640985489,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 108,
+            "id": "252998$_$7",
+            "true_cls": 2,
+            "pred_cls": 0,
+            "true_reg": 1.3333333730697632,
+            "pred_reg": -1.4444981813430786,
+            "abs_error": 2.777831554412842,
+            "gate_text": 0.6916863918304443,
+            "gate_audio": 0.16910092532634735,
+            "gate_vision": 0.13921159505844116,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 8,
+            "id": "101787$_$13",
+            "true_cls": 0,
+            "pred_cls": 2,
+            "true_reg": -1.6666666269302368,
+            "pred_reg": 0.5614277720451355,
+            "abs_error": 2.2280943989753723,
+            "gate_text": 0.7447337508201599,
+            "gate_audio": 0.19731295108795166,
+            "gate_vision": 0.05795185640454292,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 167,
+            "id": "32681$_$5",
+            "true_cls": 2,
+            "pred_cls": 0,
+            "true_reg": 0.3333333432674408,
+            "pred_reg": -1.822675347328186,
+            "abs_error": 2.156008690595627,
+            "gate_text": 0.583477795124054,
+            "gate_audio": 0.28511056303977966,
+            "gate_vision": 0.13141055405139923,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 56,
+            "id": "188343$_$13",
+            "true_cls": 2,
+            "pred_cls": 0,
+            "true_reg": 1.0,
+            "pred_reg": -1.1253412961959839,
+            "abs_error": 2.125341296195984,
+            "gate_text": 0.4616006314754486,
+            "gate_audio": 0.2756013572216034,
+            "gate_vision": 0.26279690861701965,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        },
+        {
+            "index": 99,
+            "id": "247318$_$3",
+            "true_cls": 0,
+            "pred_cls": 1,
+            "true_reg": -2.3333332538604736,
+            "pred_reg": -0.20882003009319305,
+            "abs_error": 2.1245132237672806,
+            "gate_text": 0.8045541644096375,
+            "gate_audio": 0.12113144248723984,
+            "gate_vision": 0.07431161403656006,
+            "error_type": "弱情感混淆 (Weak-Sentiment-Confusion)"
+        },
+        {
+            "index": 660,
+            "id": "rwNlqh0k1j4$_$15",
+            "true_cls": 0,
+            "pred_cls": 2,
+            "true_reg": -0.6666666865348816,
+            "pred_reg": 1.4517265558242798,
+            "abs_error": 2.1183932423591614,
+            "gate_text": 0.6107834577560425,
+            "gate_audio": 0.22806142270565033,
+            "gate_vision": 0.16115409135818481,
+            "error_type": "严重极性倒置 (Polarity-Inversion)"
+        }
+    ]
+}

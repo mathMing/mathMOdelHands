@@ -1,0 +1,6 @@
+model,accuracy,macro_f1,mae,pearson,delta_accuracy_vs_full,delta_macro_f1_vs_full
+Full DRM-Net,0.6630,0.6254,0.6346,0.6630,0.0000,0.0000
+No Cross-Attention,0.6616,0.6217,0.6231,0.6723,-0.0014,-0.0037
+No Dynamic Gate,0.6616,0.6269,0.6343,0.6597,-0.0014,0.0015
+No Missing Augmentation,0.6465,0.6083,0.6360,0.6646,-0.0165,-0.0171
+No Missing Mask,0.6575,0.6093,0.6428,0.6541,-0.0055,-0.0161

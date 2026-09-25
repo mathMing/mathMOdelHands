@@ -76,9 +76,12 @@ class RobustMultimodalModel(nn.Module):
       3. 可学习缺失 Prompt 自适应填充 (思路 C)
       4. 动态信噪比置信度门控分配器 (Dynamic Reliability Gate)
     """
-    def __init__(self, d_text=768, d_audio=74, d_vision=35, d_model=256, num_heads=4, num_classes=3):
+    def __init__(self, d_text=768, d_audio=74, d_vision=35, d_model=256, num_heads=4, num_classes=3,
+                 use_cross_attention=True, use_dynamic_gate=True):
         super().__init__()
         self.d_model = d_model
+        self.use_cross_attention = use_cross_attention
+        self.use_dynamic_gate = use_dynamic_gate
 
         # 1. 单模态高维特征对齐投射层
         self.proj_t = nn.Sequential(
@@ -180,9 +183,12 @@ class RobustMultimodalModel(nn.Module):
         valid_tv = torch.clamp(mask_t + mask_v, max=1.0)
         valid_ta = torch.clamp(mask_t + mask_a, max=1.0)
 
-        imputed_t = self.cross_t(h_t, 0.5 * (h_a + h_v), valid_mask=valid_av)
-        imputed_a = self.cross_a(h_a, 0.5 * (h_t + h_v), valid_mask=valid_tv)
-        imputed_v = self.cross_v(h_v, 0.5 * (h_t + h_a), valid_mask=valid_ta)
+        if self.use_cross_attention:
+            imputed_t = self.cross_t(h_t, 0.5 * (h_a + h_v), valid_mask=valid_av)
+            imputed_a = self.cross_a(h_a, 0.5 * (h_t + h_v), valid_mask=valid_tv)
+            imputed_v = self.cross_v(h_v, 0.5 * (h_t + h_a), valid_mask=valid_ta)
+        else:
+            imputed_t, imputed_a, imputed_v = h_t, h_a, h_v
 
         # 4. 残差自适应融合
         m_t_expand = mask_t.unsqueeze(-1)
@@ -214,11 +220,14 @@ class RobustMultimodalModel(nn.Module):
         
         gate_feat = torch.cat([sum_t, sum_a, sum_v, ratio_t, ratio_a, ratio_v, sim_ta, sim_tv, sim_av], dim=-1)
 
-        raw_gates = self.gate_fc(gate_feat) # (B, 3)
-        # 与先验有效率联合调制
-        prior_mask = torch.cat([ratio_t, ratio_a, ratio_v], dim=-1) + 1e-3
-        gates = F.softmax(raw_gates, dim=-1) * prior_mask
-        gates = gates / (gates.sum(dim=-1, keepdim=True) + 1e-6) # 归一化
+        if self.use_dynamic_gate:
+            raw_gates = self.gate_fc(gate_feat) # (B, 3)
+            prior_mask = torch.cat([ratio_t, ratio_a, ratio_v], dim=-1) + 1e-3
+            gates = F.softmax(raw_gates, dim=-1) * prior_mask
+            gates = gates / (gates.sum(dim=-1, keepdim=True) + 1e-6)
+        else:
+            prior_mask = torch.cat([ratio_t, ratio_a, ratio_v], dim=-1)
+            gates = prior_mask / prior_mask.sum(dim=-1, keepdim=True).clamp_min(1e-6)
 
         g_t = gates[:, 0:1]
         g_a = gates[:, 1:2]

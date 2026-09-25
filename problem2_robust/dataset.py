@@ -111,11 +111,11 @@ class MOSEIDataset(Dataset):
 
         return item
 
-def get_dataloaders(pkl_path, batch_size=64):
+def get_dataloaders(pkl_path, batch_size=64, augment_missing=True):
     with open(pkl_path, 'rb') as f:
         data = pickle.load(f)
         
-    train_set = MOSEIDataset(data['train'], is_train=True, augment_missing=True)
+    train_set = MOSEIDataset(data['train'], is_train=True, augment_missing=augment_missing)
     valid_set = MOSEIDataset(data['valid'], is_train=False, augment_missing=False,
                              audio_mean=train_set.audio_mean, audio_std=train_set.audio_std,
                              vision_mean=train_set.vision_mean, vision_std=train_set.vision_std)

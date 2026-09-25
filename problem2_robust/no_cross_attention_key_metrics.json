@@ -1,0 +1,28 @@
+{
+    "task": "问题二：多模态鲁棒模型 (4头跨模态注意力 + 3-Seed集成 + 极性冲突感知门控 + Wasserstein序数校准 + 贝叶斯动态阈值)",
+    "best_single_model_epoch": 4,
+    "best_single_model_validation_metrics": {
+        "Accuracy_3Class": 0.6264,
+        "Macro_F1_3Class": 0.6065,
+        "Accuracy_2Class_Benchmark": 0.7775,
+        "Weighted_F1_2Class": 0.7845,
+        "MAE": 0.5951,
+        "Pearson_r": 0.637
+    },
+    "ensemble_argmax_metrics": {
+        "Accuracy_3Class": 0.6616,
+        "Macro_F1_3Class": 0.6217,
+        "Accuracy_2Class_Benchmark": 0.8143,
+        "Weighted_F1_2Class": 0.8189,
+        "MAE": 0.6231,
+        "Pearson_r": 0.6723
+    },
+    "budt_comparison_metrics": {
+        "Accuracy_3Class": 0.6616,
+        "Macro_F1_3Class": 0.6217,
+        "Accuracy_2Class_Benchmark": 0.8143,
+        "Weighted_F1_2Class": 0.8189,
+        "MAE": 0.6231,
+        "Pearson_r": 0.6723
+    }
+}
